@@ -1,0 +1,78 @@
+services:
+  # MongoDB database
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb-init:/docker-entrypoint-initdb.d
+    environment:
+      MONGO_INITDB_DATABASE: logisticmap
+    networks:
+      - internal_net
+    restart: unless-stopped
+
+  # Backend API service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "5001:5000"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/logisticmap
+    networks:
+      - internal_net
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile  # builds React SSR app with Node.js server
+    container_name: frontend
+ 
+    # React Router SSR server runs on port 3000 internally
+    ports:
+      - "3000:3000"  # expose frontend directly for debugging
+    networks:
+      - internal_net
+    depends_on:
+      - backend
+  # Tileserver for serving MBTiles
+  tileserver:
+    image: maptiler/tileserver-gl
+    container_name: tileserver
+    volumes:
+      - ./tileserver/data:/data  # mount our mbtiles files
+    ports:
+      - "8080:8080"  # expose tileserver on port 8080 for direct access/debugging
+    networks:
+      - internal_net
+
+  # Optional: Nginx reverse proxy combining frontend, API, tiles
+  nginx:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile  # this copies a custom nginx.conf as shown above
+    container_name: nginx
+    ports:
+      - "80:80"    # expose on host's port 80
+    networks:
+      - internal_net
+    depends_on:
+      - frontend
+      - backend
+      - tileserver
+
+volumes:
+  mongodb_data:
+
+networks:
+  internal_net:
+    driver: bridge

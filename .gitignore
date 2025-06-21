@@ -266,6 +266,13 @@ UpgradeLog*.htm
 ServiceFabricBackup/
 *.rptproj.bak
 
+.mbtiles
+
+# Tileserver data files
+tileserver/data/
+tileserver/data/*
+*.mbtiles
+
 # SQL Server files
 *.mdf
 *.ldf

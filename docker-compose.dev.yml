@@ -1,0 +1,84 @@
+services:
+  # MongoDB database
+  mongodb:
+    image: mongo:7
+    container_name: mongodb-dev
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data_dev:/data/db
+      - ./mongodb-init:/docker-entrypoint-initdb.d
+    environment:
+      MONGO_INITDB_DATABASE: logisticmap
+    networks:
+      - internal_net
+
+  # Backend API service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: backend-dev
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    ports:
+      - "5001:5000"
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://mongodb:27017/logisticmap
+    networks:
+      - internal_net
+    depends_on:
+      - mongodb
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: frontend-dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # prevent node_modules from being overwritten
+    ports:
+      - "3000:3000"
+    networks:
+      - internal_net
+    environment:
+      - NODE_ENV=development
+    command: npm run dev
+    depends_on:
+      - backend
+    
+  # Tileserver for serving MBTiles  
+  tileserver:
+    image: maptiler/tileserver-gl
+    container_name: tileserver-dev
+    volumes:
+      - ./tileserver/data:/data  # mount our mbtiles files
+    ports:
+      - "8080:8080"  # expose tileserver on port 8080 for direct access/debugging
+    networks:
+      - internal_net
+    
+  # Optional: Nginx reverse proxy combining frontend, API, tiles
+  nginx:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    container_name: nginx-dev
+    ports:
+      - "80:80"
+    networks:
+      - internal_net
+    depends_on:
+      - frontend
+      - backend
+      - tileserver
+
+volumes:
+  mongodb_data_dev:
+      
+networks:
+  internal_net:
+    driver: bridge 
