@@ -141,4 +141,3 @@ Backend environment variables:
 - Verify backend health: `http://localhost:5001/health`
 - Check network connectivity between containers
 - Review nginx configuration for API routing
-
