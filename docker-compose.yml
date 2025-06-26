@@ -22,6 +22,8 @@ services:
     container_name: backend
     ports:
       - "5001:5000"
+    volumes:
+      - file_storage:/app/uploads  # Volume for file storage
     environment:
       - NODE_ENV=production
       - MONGODB_URI=mongodb://mongodb:27017/logisticmap
@@ -72,6 +74,7 @@ services:
 
 volumes:
   mongodb_data:
+  file_storage:
 
 networks:
   internal_net:

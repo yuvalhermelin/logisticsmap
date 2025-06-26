@@ -19,6 +19,39 @@ const inventoryItemSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
+// Schema for uploaded files
+const fileSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true
+  },
+  customName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  originalName: {
+    type: String,
+    required: true
+  },
+  fileName: {
+    type: String,
+    required: true  // The actual file name stored on disk
+  },
+  fileSize: {
+    type: Number,
+    required: true
+  },
+  mimeType: {
+    type: String,
+    required: true
+  },
+  uploadedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: false });
+
 // Schema for Polygon Areas (now a top-level collection)
 const polygonAreaSchema = new mongoose.Schema({
   id: {
@@ -39,7 +72,8 @@ const polygonAreaSchema = new mongoose.Schema({
     lat: { type: Number, required: true },
     lng: { type: Number, required: true }
   }],
-  inventoryItems: [inventoryItemSchema]
+  inventoryItems: [inventoryItemSchema],
+  files: [fileSchema]
 }, {
   timestamps: true
 });

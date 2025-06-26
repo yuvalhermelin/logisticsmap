@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
-import { api, type InventoryItem, type InventoryItemCatalog } from '../services/api';
+import { useState, useEffect, useRef } from 'react';
+import { api, type InventoryItem, type InventoryItemCatalog, type FileItem } from '../services/api';
 
 interface InventoryManagementProps {
   campId: string;
   polygonId: string;
   currentInventory: InventoryItem[];
+  currentFiles?: FileItem[];
   onInventoryUpdated: () => void;
 }
 
@@ -12,6 +13,7 @@ export default function InventoryManagement({
   campId, 
   polygonId, 
   currentInventory, 
+  currentFiles = [],
   onInventoryUpdated 
 }: InventoryManagementProps) {
   const [catalogItems, setCatalogItems] = useState<InventoryItemCatalog[]>([]);
@@ -20,6 +22,12 @@ export default function InventoryManagement({
   const [newItemName, setNewItemName] = useState<string>('');
   const [isAddingNew, setIsAddingNew] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  
+  // File upload states
+  const [isUploadingFile, setIsUploadingFile] = useState<boolean>(false);
+  const [customFileName, setCustomFileName] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadCatalogItems();
@@ -95,6 +103,64 @@ export default function InventoryManagement({
     } finally {
       setLoading(false);
     }
+  };
+
+  // File management functions
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setCustomFileName(file.name); // Default to original filename
+    }
+  };
+
+  const handleFileUpload = async () => {
+    if (!selectedFile || !customFileName.trim()) return;
+
+    setIsUploadingFile(true);
+    try {
+      await api.uploadFileToArea(campId, polygonId, selectedFile, customFileName.trim());
+      setSelectedFile(null);
+      setCustomFileName('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      onInventoryUpdated();
+    } catch (error) {
+      console.error('Failed to upload file:', error);
+      alert('נכשל בהעלאת הקובץ. אנא נסה שוב.');
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
+
+  const handleFileDownload = async (file: FileItem) => {
+    try {
+      await api.downloadFileFromArea(campId, polygonId, file.id, file.originalName);
+    } catch (error) {
+      console.error('Failed to download file:', error);
+      alert('נכשל בהורדת הקובץ. אנא נסה שוב.');
+    }
+  };
+
+  const handleFileDelete = async (fileId: string) => {
+    if (!confirm('האם אתה בטוח שברצונך למחוק את הקובץ?')) return;
+
+    try {
+      await api.deleteFileFromArea(campId, polygonId, fileId);
+      onInventoryUpdated();
+    } catch (error) {
+      console.error('Failed to delete file:', error);
+      alert('נכשל במחיקת הקובץ. אנא נסה שוב.');
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
@@ -222,6 +288,95 @@ export default function InventoryManagement({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Files Section */}
+      <div className="border-t pt-3 mt-4">
+        <h5 className="text-sm font-medium text-gray-600 mb-2">קבצים מצורפים:</h5>
+        
+        {/* Current files */}
+        {currentFiles.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {currentFiles.map((file) => (
+              <div key={file.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                <div className="flex-1">
+                  <div className="text-sm font-medium">{file.customName}</div>
+                  <div className="text-xs text-gray-500">
+                    {formatFileSize(file.fileSize)} • {new Date(file.uploadedAt).toLocaleDateString('he-IL')}
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleFileDownload(file)}
+                    className="text-blue-500 hover:text-blue-700 text-xs px-2 py-1 rounded border border-blue-300 hover:bg-blue-50"
+                  >
+                    הורד
+                  </button>
+                  <button
+                    onClick={() => handleFileDelete(file.id)}
+                    className="text-red-500 hover:text-red-700 text-xs px-2 py-1 rounded border border-red-300 hover:bg-red-50"
+                  >
+                    מחק
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* File upload section */}
+        <div className="space-y-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            className="hidden"
+            id={`file-upload-${polygonId}`}
+          />
+          
+          {!selectedFile ? (
+            <label
+              htmlFor={`file-upload-${polygonId}`}
+              className="inline-block px-3 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 cursor-pointer"
+            >
+              + העלה קובץ
+            </label>
+          ) : (
+            <div className="space-y-2">
+              <div className="text-xs text-gray-600">
+                קובץ נבחר: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+              </div>
+              <input
+                type="text"
+                value={customFileName}
+                onChange={(e) => setCustomFileName(e.target.value)}
+                placeholder="שם תיאורי לקובץ..."
+                className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                disabled={isUploadingFile}
+              />
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleFileUpload}
+                  disabled={!customFileName.trim() || isUploadingFile}
+                  className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300"
+                >
+                  {isUploadingFile ? 'מעלה...' : 'העלה'}
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setCustomFileName('');
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                  disabled={isUploadingFile}
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

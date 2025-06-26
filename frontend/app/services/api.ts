@@ -9,6 +9,16 @@ export interface InventoryItem {
   quantity: number;
 }
 
+export interface FileItem {
+  id: string;
+  customName: string;
+  originalName: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedAt: string;
+}
+
 export interface InventoryItemCatalog {
   id: string;
   name: string;
@@ -22,6 +32,7 @@ export interface PolygonAreaDB {
   name: string;
   positions: { lat: number; lng: number }[];
   inventoryItems?: InventoryItem[];
+  files?: FileItem[];
 }
 
 export interface CampDB {
@@ -40,6 +51,7 @@ export interface PolygonArea {
   name: string;
   positions: LatLngExpression[];
   inventoryItems?: InventoryItem[];
+  files?: FileItem[];
 }
 
 export interface Camp {
@@ -59,7 +71,8 @@ const convertCampFromDB = (campDB: CampDB): Camp => {
       id: polygon.id,
       name: polygon.name,
       positions: polygon.positions.map(pos => [pos.lat, pos.lng] as LatLngExpression),
-      inventoryItems: polygon.inventoryItems || []
+      inventoryItems: polygon.inventoryItems || [],
+      files: polygon.files || []
     }))
   };
 };
@@ -73,7 +86,8 @@ const convertPolygonToDBFormat = (polygon: PolygonArea) => {
       const [lat, lng] = pos as [number, number];
       return { lat, lng };
     }),
-    inventoryItems: polygon.inventoryItems || []
+    inventoryItems: polygon.inventoryItems || [],
+    files: polygon.files || []
   };
 };
 
@@ -403,6 +417,92 @@ export const api = {
       return await response.json();
     } catch (error) {
       console.error('Error fetching item details:', error);
+      throw error;
+    }
+  },
+
+  // File operations
+  async uploadFileToArea(campId: string, polygonId: string, file: File, customName: string): Promise<Camp> {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('customName', customName);
+
+      const response = await fetch(`${API_BASE_URL}/files/${campId}/polygons/${polygonId}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to upload file: ${response.statusText}`);
+      }
+
+      const updatedCamp: CampDB = await response.json();
+      return convertCampFromDB(updatedCamp);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  },
+
+  async downloadFileFromArea(campId: string, polygonId: string, fileId: string, originalName: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${campId}/polygons/${polygonId}/files/${fileId}/download`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to download file: ${response.statusText}`);
+      }
+
+      // Create blob and download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = originalName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      throw error;
+    }
+  },
+
+  async deleteFileFromArea(campId: string, polygonId: string, fileId: string): Promise<Camp> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${campId}/polygons/${polygonId}/files/${fileId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to delete file: ${response.statusText}`);
+      }
+
+      const updatedCamp: CampDB = await response.json();
+      return convertCampFromDB(updatedCamp);
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      throw error;
+    }
+  },
+
+  async getFilesForArea(campId: string, polygonId: string): Promise<FileItem[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/files/${campId}/polygons/${polygonId}/files`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to get files: ${response.statusText}`);
+      }
+
+      const files: FileItem[] = await response.json();
+      return files;
+    } catch (error) {
+      console.error('Error getting files:', error);
       throw error;
     }
   },

@@ -117,6 +117,7 @@ function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, cam
             campId={campId}
             polygonId={polygon.id}
             currentInventory={polygon.inventoryItems || []}
+            currentFiles={polygon.files || []}
             onInventoryUpdated={onInventoryUpdated}
           />
           </div>
