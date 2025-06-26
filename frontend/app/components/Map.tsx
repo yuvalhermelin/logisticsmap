@@ -1276,31 +1276,25 @@ export default function Map({
               onCreated={selectedCampId ? handlePolygonCreated : handleCampCreated}
               onEdited={handleEdited}
               onDeleted={handleDeleted}
-              draw={{
-                rectangle: isEditMode && selectedCampId ? {
-                  shapeOptions: {
-                    color: '#ff7800',
-                    weight: 2,
-                    fillOpacity: 0.3
-                  },
-                  repeatMode: false,
-                  showRadius: false
-                } : false,
-                circle: false,
-                circlemarker: false,
-                marker: false,
-                polyline: false,
-                polygon: isEditMode && !selectedCampId ? {
-                  allowIntersection: false,
-                  drawError: {
-                    color: '#e1e100',
-                    message: '<strong>שגיאה:</strong> קצוות הצורה לא יכולים להצטלב!'
-                  },
-                  shapeOptions: {
-                    color: '#97009c'
-                  }
-                } : false
-              }}
+                          draw={{
+              rectangle: false,
+              circle: false,
+              circlemarker: false,
+              marker: false,
+              polyline: false,
+              polygon: isEditMode ? {
+                allowIntersection: false,
+                drawError: {
+                  color: '#e1e100',
+                  message: '<strong>שגיאה:</strong> קצוות הצורה לא יכולים להצטלב!'
+                },
+                shapeOptions: {
+                  color: selectedCampId ? '#ff7800' : '#97009c',
+                  weight: 2,
+                  fillOpacity: selectedCampId ? 0.3 : 0.2
+                }
+              } : false
+            }}
                           edit={{
               featureGroup: featureGroupRef.current,
               edit: isEditMode ? {} : false,
