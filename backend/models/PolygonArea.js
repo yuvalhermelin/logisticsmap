@@ -19,8 +19,8 @@ const inventoryItemSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
-// Schema for Rectangle Areas (now a top-level collection)
-const rectangleAreaSchema = new mongoose.Schema({
+// Schema for Polygon Areas (now a top-level collection)
+const polygonAreaSchema = new mongoose.Schema({
   id: {
     type: String,
     required: true,
@@ -35,39 +35,17 @@ const rectangleAreaSchema = new mongoose.Schema({
     required: true,
     index: true // Index for efficient queries by camp
   },
-  bounds: {
-    southWest: {
-      lat: { type: Number, required: true },
-      lng: { type: Number, required: true }
-    },
-    northEast: {
-      lat: { type: Number, required: true },
-      lng: { type: Number, required: true }
-    }
-  },
-  rotation: {
-    type: Number,
-    default: 0
-  },
-  center: {
+  positions: [{
     lat: { type: Number, required: true },
     lng: { type: Number, required: true }
-  },
-  width: {
-    type: Number,
-    required: true
-  },
-  height: {
-    type: Number,
-    required: true
-  },
+  }],
   inventoryItems: [inventoryItemSchema]
 }, {
   timestamps: true
 });
 
 // Indexes for better query performance
-rectangleAreaSchema.index({ campId: 1 });
-rectangleAreaSchema.index({ 'inventoryItems.name': 1 });
+polygonAreaSchema.index({ campId: 1 });
+polygonAreaSchema.index({ 'inventoryItems.name': 1 });
 
-module.exports = mongoose.model('RectangleArea', rectangleAreaSchema); 
+module.exports = mongoose.model('PolygonArea', polygonAreaSchema); 

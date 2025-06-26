@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Route } from "./+types/camps";
-import { api, type Camp, type RectangleAreaDB, type InventoryItem } from "../services/api";
+import { api, type Camp, type PolygonArea, type InventoryItem } from "../services/api";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -141,13 +141,13 @@ export default function Camps() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div>{camp.rectangleAreas.length} אזור{camp.rectangleAreas.length !== 1 ? 'ים' : ''}</div>
+                      <div>{camp.polygonAreas.length} אזור{camp.polygonAreas.length !== 1 ? 'ים' : ''}</div>
                       {(() => {
-                        const totalItems = camp.rectangleAreas.reduce((total, area) => 
+                        const totalItems = camp.polygonAreas.reduce((total, area) => 
                           total + (area.inventoryItems?.length || 0), 0
                         );
                         const uniqueItemTypes = new Set(
-                          camp.rectangleAreas.flatMap(area => 
+                          camp.polygonAreas.flatMap(area => 
                             area.inventoryItems?.map(item => item.name) || []
                           )
                         ).size;
@@ -172,12 +172,12 @@ export default function Camps() {
                     </td>
                   </tr>
                   
-                  {expandedCamps[camp.id] && camp.rectangleAreas.length > 0 && (
+                  {expandedCamps[camp.id] && camp.polygonAreas.length > 0 && (
                     <tr>
                       <td colSpan={4} className="px-6 py-4 bg-gray-50">
                         <div className="mr-4">
                           <h4 className="text-sm font-medium text-gray-700 mb-3">
-                            אזורי מלבן ({camp.rectangleAreas.length})
+                            אזורי פוליגון ({camp.polygonAreas.length})
                           </h4>
                           <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200 bg-white rounded-md shadow-sm">
@@ -190,16 +190,7 @@ export default function Camps() {
                                     מזהה
                                   </th>
                                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                                    גבולות (דרום-מערב → צפון-מזרח)
-                                  </th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                                    מרכז
-                                  </th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                                    מימדים
-                                  </th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                                    סיבוב
+                                    מיקומים
                                   </th>
                                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
                                     פריטי מלאי
@@ -207,8 +198,7 @@ export default function Camps() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-200">
-                                {camp.rectangleAreas.map((area) => {
-                                  const bounds = getRectangleBounds(area);
+                                {camp.polygonAreas.map((area) => {
                                   return (
                                     <tr key={area.id} className="hover:bg-gray-50">
                                       <td className="px-4 py-2 text-sm font-medium text-gray-900">
@@ -218,39 +208,24 @@ export default function Camps() {
                                         {area.id}
                                       </td>
                                       <td className="px-4 py-2 text-xs text-gray-600">
-                                        {bounds ? (
-                                          <div>
-                                            <div>דמ: ({formatCoordinate(bounds.sw.lat)}, {formatCoordinate(bounds.sw.lng)})</div>
-                                            <div>צמ: ({formatCoordinate(bounds.ne.lat)}, {formatCoordinate(bounds.ne.lng)})</div>
+                                        <div className="max-w-xs">
+                                          {area.positions.slice(0, 3).map((pos, idx) => {
+                                            const [lat, lng] = pos as [number, number];
+                                            return (
+                                              <div key={idx}>
+                                                ({formatCoordinate(lat)}, {formatCoordinate(lng)})
+                                              </div>
+                                            );
+                                          })}
+                                          {area.positions.length > 3 && (
+                                            <div className="text-gray-400">
+                                              +{area.positions.length - 3} נוספים...
+                                            </div>
+                                          )}
+                                          <div className="text-gray-500 text-xs">
+                                            סך הכל: {area.positions.length} מיקומים
                                           </div>
-                                        ) : (
-                                          <span className="text-gray-400">אין נתוני גבולות</span>
-                                        )}
-                                      </td>
-                                      <td className="px-4 py-2 text-xs text-gray-600">
-                                        {area.center ? (
-                                          <div>
-                                            ({formatCoordinate(area.center[0])}, {formatCoordinate(area.center[1])})
-                                          </div>
-                                        ) : (
-                                          <span className="text-gray-400">אין נתוני מרכז</span>
-                                        )}
-                                      </td>
-                                      <td className="px-4 py-2 text-xs text-gray-600">
-                                        {area.width && area.height ? (
-                                          <div>
-                                            {area.width.toFixed(2)} × {area.height.toFixed(2)}
-                                          </div>
-                                        ) : (
-                                          <span className="text-gray-400">אין מימדים</span>
-                                        )}
-                                      </td>
-                                      <td className="px-4 py-2 text-xs text-gray-600">
-                                        {area.rotation !== undefined ? (
-                                          <span>{area.rotation.toFixed(1)}°</span>
-                                        ) : (
-                                          <span className="text-gray-400">0°</span>
-                                        )}
+                                        </div>
                                       </td>
                                       <td className="px-4 py-2 text-xs text-gray-600">
                                         {area.inventoryItems && area.inventoryItems.length > 0 ? (
@@ -285,11 +260,11 @@ export default function Camps() {
                     </tr>
                   )}
                   
-                  {expandedCamps[camp.id] && camp.rectangleAreas.length === 0 && (
+                  {expandedCamps[camp.id] && camp.polygonAreas.length === 0 && (
                     <tr>
                       <td colSpan={4} className="px-6 py-4 bg-gray-50">
                         <div className="mr-4 text-sm text-gray-500 italic">
-                          לא הוגדרו אזורי מלבן למחנה זה
+                          לא הוגדרו אזורי פוליגון למחנה זה
                         </div>
                       </td>
                     </tr>

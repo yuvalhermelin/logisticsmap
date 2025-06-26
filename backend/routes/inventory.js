@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const InventoryItemCatalog = require('../models/InventoryItem');
 const Camp = require('../models/Camp');
-const RectangleArea = require('../models/RectangleArea');
+const PolygonArea = require('../models/PolygonArea');
 const { v4: uuidv4 } = require('uuid');
 
 // Get all inventory items from catalog
@@ -43,9 +43,9 @@ router.post('/catalog', async (req, res) => {
 });
 
 // Add inventory item to an area
-router.post('/:campId/rectangles/:rectangleId/items', async (req, res) => {
+router.post('/:campId/polygons/:polygonId/items', async (req, res) => {
   try {
-    const { campId, rectangleId } = req.params;
+    const { campId, polygonId } = req.params;
     const { inventoryItemId, quantity } = req.body;
     
     if (!inventoryItemId || quantity < 0) {
@@ -63,33 +63,33 @@ router.post('/:campId/rectangles/:rectangleId/items', async (req, res) => {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
-    const rectangleArea = await RectangleArea.findOne({ id: rectangleId, campId: campId });
-    if (!rectangleArea) {
-      return res.status(404).json({ error: 'Rectangle area not found' });
+    const polygonArea = await PolygonArea.findOne({ id: polygonId, campId: campId });
+    if (!polygonArea) {
+      return res.status(404).json({ error: 'Polygon area not found' });
     }
     
     // Check if item already exists in this area
-    const existingItemIndex = rectangleArea.inventoryItems.findIndex(item => item.name === catalogItem.name);
+    const existingItemIndex = polygonArea.inventoryItems.findIndex(item => item.name === catalogItem.name);
     
     if (existingItemIndex >= 0) {
       // Update quantity if item already exists
-      rectangleArea.inventoryItems[existingItemIndex].quantity = quantity;
+      polygonArea.inventoryItems[existingItemIndex].quantity = quantity;
     } else {
       // Add new item
-      rectangleArea.inventoryItems.push({
+      polygonArea.inventoryItems.push({
         id: uuidv4(),
         name: catalogItem.name,
         quantity: quantity
       });
     }
     
-    await rectangleArea.save();
+    await polygonArea.save();
     
-    // Return the camp with all its rectangle areas for backward compatibility
-    const rectangleAreas = await RectangleArea.find({ campId: campId });
+    // Return the camp with all its polygon areas for backward compatibility
+    const polygonAreas = await PolygonArea.find({ campId: campId });
     res.json({
       ...camp.toObject(),
-      rectangleAreas
+      polygonAreas
     });
   } catch (error) {
     console.error('Error adding inventory item to area:', error);
@@ -98,9 +98,9 @@ router.post('/:campId/rectangles/:rectangleId/items', async (req, res) => {
 });
 
 // Update inventory item quantity in an area
-router.put('/:campId/rectangles/:rectangleId/items/:itemId', async (req, res) => {
+router.put('/:campId/polygons/:polygonId/items/:itemId', async (req, res) => {
   try {
-    const { campId, rectangleId, itemId } = req.params;
+    const { campId, polygonId, itemId } = req.params;
     const { quantity } = req.body;
     
     if (quantity < 0) {
@@ -112,25 +112,25 @@ router.put('/:campId/rectangles/:rectangleId/items/:itemId', async (req, res) =>
       return res.status(404).json({ error: 'Camp not found' });
     }
     
-    const rectangleArea = await RectangleArea.findOne({ id: rectangleId, campId: campId });
-    if (!rectangleArea) {
-      return res.status(404).json({ error: 'Rectangle area not found' });
+    const polygonArea = await PolygonArea.findOne({ id: polygonId, campId: campId });
+    if (!polygonArea) {
+      return res.status(404).json({ error: 'Polygon area not found' });
     }
     
-    const itemIndex = rectangleArea.inventoryItems.findIndex(item => item.id === itemId);
+    const itemIndex = polygonArea.inventoryItems.findIndex(item => item.id === itemId);
     
     if (itemIndex === -1) {
       return res.status(404).json({ error: 'Inventory item not found in area' });
     }
     
-    rectangleArea.inventoryItems[itemIndex].quantity = quantity;
-    await rectangleArea.save();
+    polygonArea.inventoryItems[itemIndex].quantity = quantity;
+    await polygonArea.save();
     
-    // Return the camp with all its rectangle areas for backward compatibility
-    const rectangleAreas = await RectangleArea.find({ campId: campId });
+    // Return the camp with all its polygon areas for backward compatibility
+    const polygonAreas = await PolygonArea.find({ campId: campId });
     res.json({
       ...camp.toObject(),
-      rectangleAreas
+      polygonAreas
     });
   } catch (error) {
     console.error('Error updating inventory item:', error);
@@ -139,28 +139,28 @@ router.put('/:campId/rectangles/:rectangleId/items/:itemId', async (req, res) =>
 });
 
 // Remove inventory item from an area
-router.delete('/:campId/rectangles/:rectangleId/items/:itemId', async (req, res) => {
+router.delete('/:campId/polygons/:polygonId/items/:itemId', async (req, res) => {
   try {
-    const { campId, rectangleId, itemId } = req.params;
+    const { campId, polygonId, itemId } = req.params;
     
     const camp = await Camp.findOne({ id: campId });
     if (!camp) {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
-    const rectangleArea = await RectangleArea.findOne({ id: rectangleId, campId: campId });
-    if (!rectangleArea) {
-      return res.status(404).json({ error: 'Rectangle area not found' });
+    const polygonArea = await PolygonArea.findOne({ id: polygonId, campId: campId });
+    if (!polygonArea) {
+      return res.status(404).json({ error: 'Polygon area not found' });
     }
     
-    rectangleArea.inventoryItems = rectangleArea.inventoryItems.filter(item => item.id !== itemId);
-    await rectangleArea.save();
+    polygonArea.inventoryItems = polygonArea.inventoryItems.filter(item => item.id !== itemId);
+    await polygonArea.save();
     
-    // Return the camp with all its rectangle areas for backward compatibility
-    const rectangleAreas = await RectangleArea.find({ campId: campId });
+    // Return the camp with all its polygon areas for backward compatibility
+    const polygonAreas = await PolygonArea.find({ campId: campId });
     res.json({
       ...camp.toObject(),
-      rectangleAreas
+      polygonAreas
     });
   } catch (error) {
     console.error('Error removing inventory item from area:', error);
@@ -172,15 +172,15 @@ router.delete('/:campId/rectangles/:rectangleId/items/:itemId', async (req, res)
 router.get('/analytics/overview', async (req, res) => {
   try {
     const camps = await Camp.find();
-    const rectangleAreas = await RectangleArea.find();
+    const polygonAreas = await PolygonArea.find();
     
     // Calculate analytics
     const analytics = {
       totalCamps: camps.length,
-      totalAreas: rectangleAreas.length,
-      totalInventoryItems: rectangleAreas.reduce((sum, area) => 
+      totalAreas: polygonAreas.length,
+      totalInventoryItems: polygonAreas.reduce((sum, area) => 
         sum + (area.inventoryItems?.length || 0), 0),
-      totalQuantity: rectangleAreas.reduce((sum, area) => 
+      totalQuantity: polygonAreas.reduce((sum, area) => 
         sum + (area.inventoryItems?.reduce((itemSum, item) => 
           itemSum + item.quantity, 0) || 0), 0),
       
@@ -189,7 +189,7 @@ router.get('/analytics/overview', async (req, res) => {
       
       // Camp inventory summary
       campInventory: await Promise.all(camps.map(async (camp) => {
-        const campAreas = rectangleAreas.filter(area => area.campId === camp.id);
+        const campAreas = polygonAreas.filter(area => area.campId === camp.id);
         return {
           campId: camp.id,
           campName: camp.name,
@@ -203,7 +203,7 @@ router.get('/analytics/overview', async (req, res) => {
       })),
       
       // Area details with inventory
-      areaDetails: rectangleAreas.map(area => {
+      areaDetails: polygonAreas.map(area => {
         const camp = camps.find(c => c.id === area.campId);
         return {
           campId: area.campId,
@@ -217,7 +217,7 @@ router.get('/analytics/overview', async (req, res) => {
     };
     
     // Calculate item distribution
-    rectangleAreas.forEach(area => {
+    polygonAreas.forEach(area => {
       const camp = camps.find(c => c.id === area.campId);
       if (area.inventoryItems) {
         area.inventoryItems.forEach(item => {
@@ -257,7 +257,7 @@ router.get('/analytics/search', async (req, res) => {
     // Build the aggregation pipeline for efficient searching
     const pipeline = [];
     
-    // Match stage - filter rectangle areas first
+    // Match stage - filter polygon areas first
     const matchStage = {};
     if (campId) {
       matchStage.campId = campId;
@@ -335,7 +335,7 @@ router.get('/analytics/search', async (req, res) => {
       }
     });
     
-    const results = await RectangleArea.aggregate(pipeline);
+    const results = await PolygonArea.aggregate(pipeline);
     
     res.json(results);
   } catch (error) {
@@ -349,7 +349,7 @@ router.get('/analytics/item/:itemName', async (req, res) => {
   try {
     const { itemName } = req.params;
     const camps = await Camp.find();
-    const rectangleAreas = await RectangleArea.find();
+    const polygonAreas = await PolygonArea.find();
     
     const itemDetails = {
       itemName: decodeURIComponent(itemName),
@@ -361,7 +361,7 @@ router.get('/analytics/item/:itemName', async (req, res) => {
     
     // Group areas by camp
     const areasByCamp = {};
-    rectangleAreas.forEach(area => {
+    polygonAreas.forEach(area => {
       if (!areasByCamp[area.campId]) {
         areasByCamp[area.campId] = [];
       }

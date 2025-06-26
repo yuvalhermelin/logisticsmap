@@ -3,7 +3,7 @@ import type { LatLngExpression, LatLngBounds } from 'leaflet';
 import { useEffect, useState, useRef } from 'react';
 import { EditControl } from 'react-leaflet-draw';
 import Swal from 'sweetalert2';
-import { api, type Camp, type RectangleArea } from '../services/api';
+import { api, type Camp, type PolygonArea } from '../services/api';
 import InventoryManagement from './InventoryManagement';
 
 // Function to fix default markers and load CSS - only runs in browser
@@ -82,62 +82,21 @@ interface MapProps {
   style?: React.CSSProperties;
 }
 
-// Enhanced EditableRectangle component with rotation support
-interface EditableRectangleProps {
-  rectangle: RectangleArea;
+// Enhanced EditablePolygon component
+interface EditablePolygonProps {
+  polygon: PolygonArea;
   isEditing: boolean;
-  onUpdate: (updatedRectangle: RectangleArea) => void;
+  onUpdate: (updatedPolygon: PolygonArea) => void;
   onDelete: () => void;
   campName: string;
   campId: string;
   onInventoryUpdated: () => void;
 }
 
-function EditableRectangle({ rectangle, isEditing, onUpdate, onDelete, campName, campId, onInventoryUpdated }: EditableRectangleProps) {
-  
-  // Convert bounds to corner coordinates for rotation
-  const getRotatedCorners = (bounds: LatLngBounds, rotation: number, center?: [number, number]): LatLngExpression[] => {
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
-    const nw = [ne.lat, sw.lng] as [number, number];
-    const se = [sw.lat, ne.lng] as [number, number];
-    
-    const centerPoint = center || [(sw.lat + ne.lat) / 2, (sw.lng + ne.lng) / 2];
-    
-    if (rotation === 0) {
-      return [
-        [sw.lat, sw.lng] as LatLngExpression,
-        nw as LatLngExpression,
-        [ne.lat, ne.lng] as LatLngExpression,
-        se as LatLngExpression
-      ];
-    }
-    
-    // Apply rotation around center point
-    const rotatePoint = (point: [number, number], center: [number, number], angle: number): [number, number] => {
-      const cos = Math.cos(angle * Math.PI / 180);
-      const sin = Math.sin(angle * Math.PI / 180);
-      const dx = point[1] - center[1];
-      const dy = point[0] - center[0];
-      return [
-        center[0] + dx * cos - dy * sin,
-        center[1] + dx * sin + dy * cos
-      ];
-    };
-    
-    return [
-      rotatePoint([sw.lat, sw.lng], centerPoint, rotation) as LatLngExpression,
-      rotatePoint(nw, centerPoint, rotation) as LatLngExpression,
-      rotatePoint([ne.lat, ne.lng], centerPoint, rotation) as LatLngExpression,
-      rotatePoint(se, centerPoint, rotation) as LatLngExpression
-    ];
-  };
-
-  const corners = getRotatedCorners(rectangle.bounds, rectangle.rotation, rectangle.center);
-
+function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, campId, onInventoryUpdated }: EditablePolygonProps) {
   return (
     <Polygon
-      positions={corners}
+      positions={polygon.positions}
       color="#ff7800"
       fillColor="#ff7800"
       fillOpacity={0.4}
@@ -147,39 +106,25 @@ function EditableRectangle({ rectangle, isEditing, onUpdate, onDelete, campName,
       <Popup maxWidth={400}>
         <div style={{ minWidth: '300px', direction: 'rtl', textAlign: 'right' }}>
           <div className="border-b pb-2 mb-3">
-            <strong>אזור: {rectangle.name}</strong>
+            <strong>אזור: {polygon.name}</strong>
             <br />
             <em>במחנה: {campName}</em>
-            <br />
-            <small>סיבוב: {rectangle.rotation}°</small>
           </div>
 
           {/* Inventory Section */}
           <div className="mb-3">
-            <InventoryManagement
-              campId={campId}
-              rectangleId={rectangle.id}
-              currentInventory={rectangle.inventoryItems || []}
-              onInventoryUpdated={onInventoryUpdated}
-            />
+                      <InventoryManagement
+            campId={campId}
+            polygonId={polygon.id}
+            currentInventory={polygon.inventoryItems || []}
+            onInventoryUpdated={onInventoryUpdated}
+          />
           </div>
 
           {isEditing && (
             <div className="mt-3 pt-3 border-t space-y-2">
-              <div>
-                <label className="block text-xs text-gray-600">סיבוב:</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="360"
-                  value={rectangle.rotation}
-                  onChange={(e) => onUpdate({ ...rectangle, rotation: parseInt(e.target.value) })}
-                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="text-xs text-gray-500">{rectangle.rotation}°</div>
-              </div>
               <div className="text-xs text-gray-600 mt-2">
-                השתמש בכלי העריכה בסרגל הכלים כדי לשנות גודל/להזיז את המלבן הזה
+                השתמש בכלי העריכה בסרגל הכלים כדי לשנות את הפוליגון הזה
               </div>
               <button
                 onClick={onDelete}
@@ -203,9 +148,9 @@ interface EditModeControlProps {
   camps: Camp[];
   onSelectCamp: (campId: string) => void;
   selectedCamp: Camp | null;
-  editingRectangleId: string | null;
-  onToggleEditRectangle: (rectangleId: string) => void;
-  onDeleteRectangle: (campId: string, rectangleId: string) => void;
+  editingPolygonId: string | null;
+  onToggleEditPolygon: (polygonId: string) => void;
+  onDeletePolygon: (campId: string, polygonId: string) => void;
   editingCampId: string | null;
   onToggleEditCamp: (campId: string) => void;
   onDeleteCamp: (campId: string) => void;
@@ -218,9 +163,9 @@ function EditModeControl({
   camps, 
   onSelectCamp, 
   selectedCamp,
-  editingRectangleId,
-  onToggleEditRectangle,
-  onDeleteRectangle,
+  editingPolygonId,
+  onToggleEditPolygon,
+  onDeletePolygon,
   editingCampId,
   onToggleEditCamp,
   onDeleteCamp
@@ -256,12 +201,12 @@ function EditModeControl({
         {isEditMode && (
           <div>
             <div style={{ fontSize: '12px', marginBottom: '8px', fontWeight: 'bold' }}>
-              מצב: {selectedCampId ? 'ציור מלבנים' : 'יצירת מחנה'}
+              מצב: {selectedCampId ? 'ציור פוליגונים' : 'יצירת מחנה'}
             </div>
             <div style={{ fontSize: '11px', marginBottom: '10px', color: '#666' }}>
               {selectedCampId 
-                ? 'צייר מלבנים בתוך גבולות המחנה הנבחר. המלבנים חייבים להיות כלולים במלואם בתוך פוליגון המחנה.'
-                : 'צייר פוליגונים ליצירת מחנות. בחר מחנה למטה כדי להוסיף מלבנים.'
+                ? 'צייר פוליגונים בתוך גבולות המחנה הנבחר. הפוליגונים חייבים להיות כלולים במלואם בתוך פוליגון המחנה.'
+                : 'צייר פוליגונים ליצירת מחנות. בחר מחנה למטה כדי להוסיף פוליגונים.'
               }
             </div>
 
@@ -282,7 +227,7 @@ function EditModeControl({
                       <span style={{ fontWeight: selectedCampId === camp.id ? 'bold' : 'normal' }}>
                         {camp.name}
                       </span>
-                      <span style={{ color: '#666' }}> ({camp.rectangleAreas.length})</span>
+                      <span style={{ color: '#666' }}> ({camp.polygonAreas.length})</span>
                     </div>
                     <div>
                       <button
@@ -335,13 +280,13 @@ function EditModeControl({
               </div>
             )}
 
-            {selectedCamp && selectedCamp.rectangleAreas.length > 0 && (
+            {selectedCamp && selectedCamp.polygonAreas.length > 0 && (
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>
                   אזורים ב{selectedCamp.name}:
                 </div>
-                {selectedCamp.rectangleAreas.map((rect) => (
-                  <div key={rect.id} style={{ 
+                {selectedCamp.polygonAreas.map((polygon) => (
+                  <div key={polygon.id} style={{ 
                     display: 'flex', 
                     justifyContent: 'space-between', 
                     alignItems: 'center',
@@ -351,27 +296,26 @@ function EditModeControl({
                     borderRadius: '3px'
                   }}>
                     <div style={{ fontSize: '10px' }}>
-                      <span>{rect.name}</span>
-                      <span style={{ color: '#666' }}> ({rect.rotation}°)</span>
+                      <span>{polygon.name}</span>
                     </div>
                     <div>
                       <button
-                        onClick={() => onToggleEditRectangle(rect.id)}
+                        onClick={() => onToggleEditPolygon(polygon.id)}
                         style={{
                           padding: '2px 4px',
                           fontSize: '9px',
-                          backgroundColor: editingRectangleId === rect.id ? '#2563eb' : '#d1d5db',
-                          color: editingRectangleId === rect.id ? 'white' : '#374151',
+                          backgroundColor: editingPolygonId === polygon.id ? '#2563eb' : '#d1d5db',
+                          color: editingPolygonId === polygon.id ? 'white' : '#374151',
                           border: 'none',
                           borderRadius: '2px',
                           cursor: 'pointer',
                           marginLeft: '3px'
                         }}
                       >
-                        {editingRectangleId === rect.id ? 'עצור' : 'ערוך'}
+                        {editingPolygonId === polygon.id ? 'עצור' : 'ערוך'}
                       </button>
                       <button
-                        onClick={() => onDeleteRectangle(selectedCamp.id, rect.id)}
+                        onClick={() => onDeletePolygon(selectedCamp.id, polygon.id)}
                         style={{
                           padding: '2px 4px',
                           fontSize: '9px',
@@ -478,7 +422,18 @@ const isPointInPolygon = (point: LatLngExpression, polygon: LatLngExpression[]):
   return windingResult;
 };
 
-// Check if rectangle bounds are within polygon
+// Check if polygon is within another polygon
+const isPolygonInPolygon = (innerPolygon: LatLngExpression[], outerPolygon: LatLngExpression[]): boolean => {
+  // All vertices of the inner polygon must be inside the outer polygon
+  for (const point of innerPolygon) {
+    if (!isPointInPolygon(point, outerPolygon)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+// Check if rectangle bounds are within polygon (kept for backward compatibility)
 const isRectangleInPolygon = (bounds: LatLngBounds, polygon: LatLngExpression[]): boolean => {
   const sw = bounds.getSouthWest();
   const ne = bounds.getNorthEast();
@@ -552,11 +507,11 @@ export default function Map({
   const [error, setError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedCampId, setSelectedCampId] = useState<string | null>(null);
-  const [editingRectangleId, setEditingRectangleId] = useState<string | null>(null);
+  const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
   const [editingCampId, setEditingCampId] = useState<string | null>(null);
   const featureGroupRef = useRef<any>(null);
   const originalBoundsRef = useRef<{[key: string]: any}>({});
-  const layerToRectangleRef = useRef<{[key: string]: {campId: string, rectangleId: string}}>({});
+  const layerToPolygonRef = useRef<{[key: string]: {campId: string, polygonId: string}}>({});
   const layerToCampRef = useRef<{[key: string]: string}>({});
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -841,10 +796,10 @@ export default function Map({
     }
   };
 
-  // Handle when a rectangle area is created within a camp
-  const handleRectangleCreated = async (e: any) => {
+  // Handle when a polygon area is created within a camp
+  const handlePolygonCreated = async (e: any) => {
     if (!selectedCampId) {
-      showNotification('אנא בחר מחנה תחילה כדי להוסיף אזורי מלבן', 'error');
+      showNotification('אנא בחר מחנה תחילה כדי להוסיף אזורי פוליגון', 'error');
       return;
     }
 
@@ -855,23 +810,20 @@ export default function Map({
     }
 
     const { layer } = e;
-    const bounds = layer.getBounds();
+    const positions = layer.getLatLngs()[0].map((latlng: any) => [latlng.lat, latlng.lng] as LatLngExpression);
     
-    // Check if the rectangle is within the camp's polygon bounds
-    const rectangleInPolygon = isRectangleInPolygon(bounds, selectedCamp.positions);
+    // Check if the polygon is within the camp's polygon bounds
+    const polygonInCamp = isPolygonInPolygon(positions, selectedCamp.positions);
     
     // Debug logging
-    console.log('Rectangle bounds check:', {
-      rectangleBounds: {
-        sw: [bounds.getSouthWest().lat, bounds.getSouthWest().lng],
-        ne: [bounds.getNorthEast().lat, bounds.getNorthEast().lng]
-      },
+    console.log('Polygon bounds check:', {
+      polygonPositions: positions,
       campPositions: selectedCamp.positions,
-      isInside: rectangleInPolygon
+      isInside: polygonInCamp
     });
     
-    if (!rectangleInPolygon) {
-      showNotification(`המלבן חייב להיות מצויר במלואו בתוך גבולות המחנה "${selectedCamp.name}". אנא נסה לצייר מלבן קטן יותר או למקם אותו במלואו בתוך שטח המחנה.`, 'error');
+    if (!polygonInCamp) {
+      showNotification(`הפוליגון חייב להיות מצויר במלואו בתוך גבולות המחנה "${selectedCamp.name}". אנא נסה לצייר פוליגון קטן יותר או למקם אותו במלואו בתוך שטח המחנה.`, 'error');
       // Remove the layer from the map
       if (featureGroupRef.current) {
         featureGroupRef.current.removeLayer(layer);
@@ -879,9 +831,7 @@ export default function Map({
       return;
     }
     
-    const center = bounds.getCenter();
-    
-    // Prompt user for rectangle area name using SweetAlert2
+    // Prompt user for polygon area name using SweetAlert2
     const { value: areaName } = await Swal.fire({
       title: 'אזור חדש',
       text: 'הכנס שם לאזור הזה:',
@@ -902,26 +852,22 @@ export default function Map({
 
     if (areaName && areaName.trim()) {
       try {
-        const newRectangle: RectangleArea = {
+        const newPolygon: PolygonArea = {
           id: Date.now().toString(),
           name: areaName.trim(),
-          bounds: bounds,
-          rotation: 0,
-          center: [center.lat, center.lng],
-          width: Math.abs(bounds.getNorthEast().lng - bounds.getSouthWest().lng),
-          height: Math.abs(bounds.getNorthEast().lat - bounds.getSouthWest().lat)
+          positions: positions
         };
 
-        const updatedCamp = await api.addRectangleTocamp(selectedCampId, newRectangle);
+        const updatedCamp = await api.addPolygonToCamp(selectedCampId, newPolygon);
         setCamps(prev => prev.map(camp => 
           camp.id === selectedCampId ? updatedCamp : camp
         ));
         
         // Store mapping for editing - keep the layer in the feature group for editing
         const layerId = layer._leaflet_id;
-        layerToRectangleRef.current[layerId] = {
+        layerToPolygonRef.current[layerId] = {
           campId: selectedCampId,
-          rectangleId: newRectangle.id
+          polygonId: newPolygon.id
         };
         
         // Keep the layer in the feature group for editing capability
@@ -930,7 +876,7 @@ export default function Map({
         
         showNotification(`אזור "${areaName.trim()}" נוסף בהצלחה!`, 'success');
       } catch (err) {
-        console.error('Failed to add rectangle:', err);
+        console.error('Failed to add polygon:', err);
         showNotification(`נכשל בהוספת האזור: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
         
         // Remove the layer from the map on error
@@ -954,44 +900,40 @@ export default function Map({
     
     layers.eachLayer((layer: any) => {
       const layerId = layer._leaflet_id;
-      const rectangleMapping = layerToRectangleRef.current[layerId];
+      const polygonMapping = layerToPolygonRef.current[layerId];
       
-      if (rectangleMapping && layer.getBounds) {
-        // This is a rectangle that was edited
-        const newBounds = layer.getBounds();
-        const selectedCamp = camps.find(camp => camp.id === rectangleMapping.campId);
+      if (polygonMapping && layer.getLatLngs) {
+        // This is a polygon that was edited
+        const newPositions = layer.getLatLngs()[0].map((latlng: any) => [latlng.lat, latlng.lng] as LatLngExpression);
+        const selectedCamp = camps.find(camp => camp.id === polygonMapping.campId);
         
-        // Validate that the rectangle is still within the camp bounds
-        if (selectedCamp && !isRectangleInPolygon(newBounds, selectedCamp.positions)) {
+        // Validate that the polygon is still within the camp bounds
+        if (selectedCamp && !isPolygonInPolygon(newPositions, selectedCamp.positions)) {
           // Invalid edit - revert
-          const originalBounds = originalBoundsRef.current[layerId];
-          if (originalBounds) {
-            layer.setBounds(originalBounds);
+          const originalPolygon = selectedCamp.polygonAreas.find(p => p.id === polygonMapping.polygonId);
+          if (originalPolygon) {
+            layer.setLatLngs(originalPolygon.positions);
             
             // Show notification using SweetAlert2 toast
-            showNotification(`המלבן חייב להישאר בתוך גבולות המחנה "${selectedCamp.name}".`, 'error');
+            showNotification(`הפוליגון חייב להישאר בתוך גבולות המחנה "${selectedCamp.name}".`, 'error');
           }
           return;
         }
         
         // Valid edit - update React state
         if (selectedCamp) {
-          const newCenter = newBounds.getCenter();
-          const updatedRectangle = {
-            bounds: newBounds,
-            center: [newCenter.lat, newCenter.lng] as [number, number],
-            width: Math.abs(newBounds.getNorthEast().lng - newBounds.getSouthWest().lng),
-            height: Math.abs(newBounds.getNorthEast().lat - newBounds.getSouthWest().lat)
+          const updatedPolygon = {
+            positions: newPositions
           };
           
           setCamps(prev => prev.map(camp => 
-            camp.id === rectangleMapping.campId 
+            camp.id === polygonMapping.campId 
               ? { 
                   ...camp, 
-                  rectangleAreas: camp.rectangleAreas.map(rect => 
-                    rect.id === rectangleMapping.rectangleId 
-                      ? { ...rect, ...updatedRectangle }
-                      : rect
+                  polygonAreas: camp.polygonAreas.map(polygon => 
+                    polygon.id === polygonMapping.polygonId 
+                      ? { ...polygon, ...updatedPolygon }
+                      : polygon
                   ) 
                 }
               : camp
@@ -1009,17 +951,17 @@ export default function Map({
           // This is a camp polygon that was edited
           const newPositions = layer.getLatLngs()[0].map((latlng: any) => [latlng.lat, latlng.lng] as LatLngExpression);
           
-          // Validate that all existing rectangles still fit within the new camp bounds
+          // Validate that all existing polygons still fit within the new camp bounds
           const camp = camps.find(c => c.id === campId);
           if (camp) {
-            const invalidRectangles = camp.rectangleAreas.filter(rect => 
-              !isRectangleInPolygon(rect.bounds, newPositions)
+            const invalidPolygons = camp.polygonAreas.filter(polygon => 
+              !isPolygonInPolygon(polygon.positions, newPositions)
             );
             
-            if (invalidRectangles.length > 0) {
-              // Invalid edit - some rectangles would be outside the new camp bounds
+            if (invalidPolygons.length > 0) {
+              // Invalid edit - some polygons would be outside the new camp bounds
               showNotification(
-                `לא ניתן לשנות את גבולות המחנה מכיוון שהאזורים הבאים יהיו מחוץ לגבולות החדשים: ${invalidRectangles.map(r => r.name).join(', ')}. אנא הסר או הזז את האזורים תחילה.`,
+                `לא ניתן לשנות את גבולות המחנה מכיוון שהאזורים הבאים יהיו מחוץ לגבולות החדשים: ${invalidPolygons.map(p => p.name).join(', ')}. אנא הסר או הזז את האזורים תחילה.`,
                 'error'
               );
               
@@ -1035,7 +977,7 @@ export default function Map({
             updateCampPolygon(campId, newPositions);
           }
         } else {
-          console.log('Non-rectangle, non-camp edited:', layer.getLatLngs() || layer.getBounds());
+          console.log('Non-polygon, non-camp edited:', layer.getLatLngs() || layer.getBounds());
         }
       }
     });
@@ -1060,11 +1002,11 @@ export default function Map({
         
         console.log('Camp polygon deleted from editing layer:', campId);
       } else {
-        // Check if this is a rectangle being deleted
-        const rectangleMapping = layerToRectangleRef.current[layerId];
-        if (rectangleMapping) {
-          delete layerToRectangleRef.current[layerId];
-          console.log('Rectangle deleted from editing layer:', rectangleMapping);
+        // Check if this is a polygon being deleted
+        const polygonMapping = layerToPolygonRef.current[layerId];
+        if (polygonMapping) {
+          delete layerToPolygonRef.current[layerId];
+          console.log('Polygon deleted from editing layer:', polygonMapping);
         } else {
           console.log('Unknown shape deleted:', layer.getLatLngs() || layer.getBounds());
         }
@@ -1076,7 +1018,7 @@ export default function Map({
   const toggleEditMode = () => {
     setIsEditMode(!isEditMode);
     setSelectedCampId(null);
-    setEditingRectangleId(null);
+    setEditingPolygonId(null);
     setEditingCampId(null);
   };
 
@@ -1085,19 +1027,19 @@ export default function Map({
     setSelectedCampId(selectedCampId === campId ? null : campId);
   };
 
-  // Toggle edit rectangle
-  const toggleEditRectangle = (rectangleId: string) => {
-    const newEditingId = editingRectangleId === rectangleId ? null : rectangleId;
-    setEditingRectangleId(newEditingId);
+  // Toggle edit polygon
+  const toggleEditPolygon = (polygonId: string) => {
+    const newEditingId = editingPolygonId === polygonId ? null : polygonId;
+    setEditingPolygonId(newEditingId);
     
     // Show/hide the corresponding editing layer
     if (featureGroupRef.current) {
       featureGroupRef.current.eachLayer((layer: any) => {
         const layerId = layer._leaflet_id;
-        const rectangleMapping = layerToRectangleRef.current[layerId];
+        const polygonMapping = layerToPolygonRef.current[layerId];
         
-        if (rectangleMapping && rectangleMapping.rectangleId === rectangleId) {
-          if (newEditingId === rectangleId) {
+        if (polygonMapping && polygonMapping.polygonId === polygonId) {
+          if (newEditingId === polygonId) {
             // Make the layer visible for editing
             layer.setStyle({ opacity: 0.8, fillOpacity: 0.2, color: '#00ff00', weight: 3 });
           } else {
@@ -1109,14 +1051,14 @@ export default function Map({
     }
   };
 
-  // Update a rectangle area
-  const updateRectangleArea = async (campId: string, updatedRectangle: RectangleArea) => {
+  // Update a polygon area
+  const updatePolygonArea = async (campId: string, updatedPolygon: PolygonArea) => {
     const camp = camps.find(c => c.id === campId);
     if (!camp) return;
     
-    // Check if the updated rectangle is still within the camp bounds
-    if (!isRectangleInPolygon(updatedRectangle.bounds, camp.positions)) {
-      showNotification(`המלבן חייב להישאר בתוך גבולות המחנה "${camp.name}". העדכון בוטל.`, 'error');
+    // Check if the updated polygon is still within the camp bounds
+    if (!isPolygonInPolygon(updatedPolygon.positions, camp.positions)) {
+      showNotification(`הפוליגון חייב להישאר בתוך גבולות המחנה "${camp.name}". העדכון בוטל.`, 'error');
       
       // Don't update the state - this effectively cancels the edit
       // The UI will revert to the previous state automatically
@@ -1124,26 +1066,26 @@ export default function Map({
     }
     
     try {
-      const updatedCamp = await api.updateRectangleInCamp(campId, updatedRectangle.id, updatedRectangle);
+      const updatedCamp = await api.updatePolygonInCamp(campId, updatedPolygon.id, updatedPolygon);
       setCamps(prev => prev.map(camp => 
         camp.id === campId ? updatedCamp : camp
       ));
     } catch (err) {
-      console.error('Failed to update rectangle:', err);
+      console.error('Failed to update polygon:', err);
       showNotification(`נכשל בעדכון האזור: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
     }
   };
 
-  // Delete a rectangle area with confirmation
-  const deleteRectangleArea = async (campId: string, rectangleId: string) => {
+  // Delete a polygon area with confirmation
+  const deletePolygonArea = async (campId: string, polygonId: string) => {
     const camp = camps.find(c => c.id === campId);
-    const rectangle = camp?.rectangleAreas.find(r => r.id === rectangleId);
+    const polygon = camp?.polygonAreas.find(p => p.id === polygonId);
     
-    if (!rectangle) return;
+    if (!polygon) return;
 
     const result = await Swal.fire({
       title: 'מחק אזור',
-      text: `האם אתה בטוח שברצונך למחוק את "${rectangle.name}"? פעולה זו לא ניתנת לביטול.`,
+      text: `האם אתה בטוח שברצונך למחוק את "${polygon.name}"? פעולה זו לא ניתנת לביטול.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',
@@ -1154,13 +1096,13 @@ export default function Map({
 
     if (result.isConfirmed) {
       try {
-        const updatedCamp = await api.deleteRectangleFromCamp(campId, rectangleId);
+        const updatedCamp = await api.deletePolygonFromCamp(campId, polygonId);
         setCamps(prev => prev.map(camp => 
           camp.id === campId ? updatedCamp : camp
         ));
         showNotification('אזור נמחק בהצלחה!', 'success');
       } catch (err) {
-        console.error('Failed to delete rectangle:', err);
+        console.error('Failed to delete polygon:', err);
         showNotification(`נכשל במחיקת האזור: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
       }
     }
@@ -1319,9 +1261,9 @@ export default function Map({
             camps={camps}
             onSelectCamp={selectCamp}
             selectedCamp={selectedCamp || null}
-            editingRectangleId={editingRectangleId}
-            onToggleEditRectangle={toggleEditRectangle}
-            onDeleteRectangle={deleteRectangleArea}
+            editingPolygonId={editingPolygonId}
+            onToggleEditPolygon={toggleEditPolygon}
+            onDeletePolygon={deletePolygonArea}
             editingCampId={editingCampId}
             onToggleEditCamp={toggleEditCamp}
             onDeleteCamp={deleteCamp}
@@ -1331,7 +1273,7 @@ export default function Map({
           <FeatureGroup ref={featureGroupRef}>
             <EditControl
               position="topright"
-              onCreated={selectedCampId ? handleRectangleCreated : handleCampCreated}
+              onCreated={selectedCampId ? handlePolygonCreated : handleCampCreated}
               onEdited={handleEdited}
               onDeleted={handleDeleted}
               draw={{
@@ -1361,8 +1303,8 @@ export default function Map({
               }}
                           edit={{
               featureGroup: featureGroupRef.current,
-              edit: {},
-              remove: {}
+              edit: isEditMode ? {} : false,
+              remove: isEditMode ? {} : false
             }}
             />
           </FeatureGroup>
@@ -1385,7 +1327,7 @@ export default function Map({
                   <div style={{ direction: 'rtl', textAlign: 'right' }}>
                     <strong>מחנה: {camp.name}</strong>
                     <br />
-                    <em>אזורי מלבן: {camp.rectangleAreas.length}</em>
+                    <em>אזורי פוליגון: {camp.polygonAreas.length}</em>
                     {isEditMode && (
                       <div className="mt-2 space-y-2">
                         <button
@@ -1402,7 +1344,7 @@ export default function Map({
                               : 'bg-green-500 hover:bg-green-600 text-white'
                           }`}
                         >
-                          {editingCampId === camp.id ? 'סיים עריכת גבולות' : 'ערוך גבולות מחנה'}
+                          {editingCampId === camp.id ?  'סיים עריכת גבולות' : 'אפשר לערוך גבולות מחנה'}
                         </button>
                         <button
                           onClick={() => deleteCamp(camp.id)}
@@ -1416,14 +1358,14 @@ export default function Map({
                 </Popup>
               </Polygon>
 
-              {/* Enhanced rectangle areas within the camp */}
-              {camp.rectangleAreas.map((rect) => (
-                <EditableRectangle
-                  key={rect.id}
-                  rectangle={rect}
-                  isEditing={isEditMode && editingRectangleId === rect.id}
-                  onUpdate={(updatedRectangle) => updateRectangleArea(camp.id, updatedRectangle)}
-                  onDelete={() => deleteRectangleArea(camp.id, rect.id)}
+              {/* Enhanced polygon areas within the camp */}
+              {camp.polygonAreas.map((polygon) => (
+                <EditablePolygon
+                  key={polygon.id}
+                  polygon={polygon}
+                  isEditing={isEditMode && editingPolygonId === polygon.id}
+                  onUpdate={(updatedPolygon) => updatePolygonArea(camp.id, updatedPolygon)}
+                  onDelete={() => deletePolygonArea(camp.id, polygon.id)}
                   campName={camp.name}
                   campId={camp.id}
                   onInventoryUpdated={() => {

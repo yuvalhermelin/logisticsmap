@@ -1,25 +1,25 @@
 const express = require('express');
 const router = express.Router();
 const Camp = require('../models/Camp');
-const RectangleArea = require('../models/RectangleArea');
+const PolygonArea = require('../models/PolygonArea');
 
 // Get all camps
 router.get('/', async (req, res) => {
   try {
     const camps = await Camp.find().sort({ createdAt: -1 });
     
-    // For each camp, fetch its rectangle areas
-    const campsWithRectangles = await Promise.all(
+    // For each camp, fetch its polygon areas
+    const campsWithPolygons = await Promise.all(
       camps.map(async (camp) => {
-        const rectangleAreas = await RectangleArea.find({ campId: camp.id });
+        const polygonAreas = await PolygonArea.find({ campId: camp.id });
         return {
           ...camp.toObject(),
-          rectangleAreas
+          polygonAreas
         };
       })
     );
     
-    res.json(campsWithRectangles);
+    res.json(campsWithPolygons);
   } catch (error) {
     console.error('Error fetching camps:', error);
     res.status(500).json({ error: 'Failed to fetch camps' });
@@ -39,10 +39,10 @@ router.post('/', async (req, res) => {
     
     const savedCamp = await camp.save();
     
-    // Include empty rectangleAreas array for backward compatibility
+    // Include empty polygonAreas array for backward compatibility
     res.status(201).json({
       ...savedCamp.toObject(),
-      rectangleAreas: []
+      polygonAreas: []
     });
   } catch (error) {
     console.error('Error creating camp:', error);
@@ -60,8 +60,8 @@ router.put('/:campId', async (req, res) => {
     const { campId } = req.params;
     const updateData = req.body;
     
-    // Remove rectangleAreas from update data as it's now a separate collection
-    delete updateData.rectangleAreas;
+    // Remove polygonAreas from update data as it's now a separate collection
+    delete updateData.polygonAreas;
     
     const camp = await Camp.findOneAndUpdate(
       { id: campId },
@@ -73,12 +73,12 @@ router.put('/:campId', async (req, res) => {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
-    // Fetch rectangle areas for this camp
-    const rectangleAreas = await RectangleArea.find({ campId: campId });
-    
+        // Fetch polygon areas for this camp
+    const polygonAreas = await PolygonArea.find({ campId: campId });
+
     res.json({
       ...camp.toObject(),
-      rectangleAreas
+      polygonAreas
     });
   } catch (error) {
     console.error('Error updating camp:', error);
@@ -97,8 +97,8 @@ router.delete('/:campId', async (req, res) => {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
-    // Also delete all rectangle areas associated with this camp
-    await RectangleArea.deleteMany({ campId: campId });
+    // Also delete all polygon areas associated with this camp
+    await PolygonArea.deleteMany({ campId: campId });
     
     res.json({ message: 'Camp deleted successfully' });
   } catch (error) {
@@ -107,11 +107,11 @@ router.delete('/:campId', async (req, res) => {
   }
 });
 
-// Add rectangle area to camp
-router.post('/:campId/rectangles', async (req, res) => {
+// Add polygon area to camp
+router.post('/:campId/polygons', async (req, res) => {
   try {
     const { campId } = req.params;
-    const rectangleData = req.body;
+    const polygonData = req.body;
     
     const camp = await Camp.findOne({ id: campId });
     
@@ -119,32 +119,32 @@ router.post('/:campId/rectangles', async (req, res) => {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
-    // Create new rectangle area with campId
-    const rectangleArea = new RectangleArea({
-      ...rectangleData,
+    // Create new polygon area with campId
+    const polygonArea = new PolygonArea({
+      ...polygonData,
       campId: campId
     });
     
-    await rectangleArea.save();
+    await polygonArea.save();
     
-    // Return the camp with all its rectangle areas
-    const rectangleAreas = await RectangleArea.find({ campId: campId });
+    // Return the camp with all its polygon areas
+    const polygonAreas = await PolygonArea.find({ campId: campId });
     
     res.status(201).json({
       ...camp.toObject(),
-      rectangleAreas
+      polygonAreas
     });
   } catch (error) {
-    console.error('Error adding rectangle to camp:', error);
-    res.status(500).json({ error: 'Failed to add rectangle to camp' });
+    console.error('Error adding polygon to camp:', error);
+    res.status(500).json({ error: 'Failed to add polygon to camp' });
   }
 });
 
-// Update rectangle area in camp
-router.put('/:campId/rectangles/:rectangleId', async (req, res) => {
+// Update polygon area in camp
+router.put('/:campId/polygons/:polygonId', async (req, res) => {
   try {
-    const { campId, rectangleId } = req.params;
-    const rectangleData = req.body;
+    const { campId, polygonId } = req.params;
+    const polygonData = req.body;
     
     const camp = await Camp.findOne({ id: campId });
     
@@ -152,34 +152,34 @@ router.put('/:campId/rectangles/:rectangleId', async (req, res) => {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
-    // Update the rectangle area
-    const updatedRectangle = await RectangleArea.findOneAndUpdate(
-      { id: rectangleId, campId: campId },
-      rectangleData,
+    // Update the polygon area
+    const updatedPolygon = await PolygonArea.findOneAndUpdate(
+      { id: polygonId, campId: campId },
+      polygonData,
       { new: true, runValidators: true }
     );
     
-    if (!updatedRectangle) {
-      return res.status(404).json({ error: 'Rectangle not found' });
+    if (!updatedPolygon) {
+      return res.status(404).json({ error: 'Polygon not found' });
     }
     
-    // Return the camp with all its rectangle areas
-    const rectangleAreas = await RectangleArea.find({ campId: campId });
+    // Return the camp with all its polygon areas
+    const polygonAreas = await PolygonArea.find({ campId: campId });
     
     res.json({
       ...camp.toObject(),
-      rectangleAreas
+      polygonAreas
     });
   } catch (error) {
-    console.error('Error updating rectangle in camp:', error);
-    res.status(500).json({ error: 'Failed to update rectangle in camp' });
+    console.error('Error updating polygon in camp:', error);
+    res.status(500).json({ error: 'Failed to update polygon in camp' });
   }
 });
 
-// Delete rectangle area from camp
-router.delete('/:campId/rectangles/:rectangleId', async (req, res) => {
+// Delete polygon area from camp
+router.delete('/:campId/polygons/:polygonId', async (req, res) => {
   try {
-    const { campId, rectangleId } = req.params;
+    const { campId, polygonId } = req.params;
     
     const camp = await Camp.findOne({ id: campId });
     
@@ -187,25 +187,25 @@ router.delete('/:campId/rectangles/:rectangleId', async (req, res) => {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
-    const deletedRectangle = await RectangleArea.findOneAndDelete({ 
-      id: rectangleId, 
+    const deletedPolygon = await PolygonArea.findOneAndDelete({ 
+      id: polygonId, 
       campId: campId 
     });
     
-    if (!deletedRectangle) {
-      return res.status(404).json({ error: 'Rectangle not found' });
+    if (!deletedPolygon) {
+      return res.status(404).json({ error: 'Polygon not found' });
     }
     
-    // Return the camp with remaining rectangle areas
-    const rectangleAreas = await RectangleArea.find({ campId: campId });
+    // Return the camp with remaining polygon areas
+    const polygonAreas = await PolygonArea.find({ campId: campId });
     
     res.json({
       ...camp.toObject(),
-      rectangleAreas
+      polygonAreas
     });
   } catch (error) {
-    console.error('Error deleting rectangle from camp:', error);
-    res.status(500).json({ error: 'Failed to delete rectangle from camp' });
+    console.error('Error deleting polygon from camp:', error);
+    res.status(500).json({ error: 'Failed to delete polygon from camp' });
   }
 });
 

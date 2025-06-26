@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Alert = require('../models/Alert');
 const Camp = require('../models/Camp');
-const RectangleArea = require('../models/RectangleArea');
+const PolygonArea = require('../models/PolygonArea');
 const { v4: uuidv4 } = require('uuid');
 
 // TODO: Add typescript support
@@ -12,7 +12,7 @@ const getCurrentQuantity = async (itemName, alertType, campId = null, areaId = n
   try {
     if (alertType === 'global') {
       // Use aggregation to efficiently calculate total quantity across all areas that have this item
-      const result = await RectangleArea.aggregate([
+      const result = await PolygonArea.aggregate([
         { $match: { 'inventoryItems.name': itemName } },
         { $unwind: '$inventoryItems' },
         { $match: { 'inventoryItems.name': itemName } },
@@ -26,7 +26,7 @@ const getCurrentQuantity = async (itemName, alertType, campId = null, areaId = n
     } 
     else if (alertType === 'area') {
       // Use projection to only fetch the specific inventory item
-      const area = await RectangleArea.findOne(
+      const area = await PolygonArea.findOne(
         { 
           id: areaId, 
           campId: campId,

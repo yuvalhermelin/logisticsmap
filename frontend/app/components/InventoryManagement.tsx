@@ -3,14 +3,14 @@ import { api, type InventoryItem, type InventoryItemCatalog } from '../services/
 
 interface InventoryManagementProps {
   campId: string;
-  rectangleId: string;
+  polygonId: string;
   currentInventory: InventoryItem[];
   onInventoryUpdated: () => void;
 }
 
 export default function InventoryManagement({ 
   campId, 
-  rectangleId, 
+  polygonId, 
   currentInventory, 
   onInventoryUpdated 
 }: InventoryManagementProps) {
@@ -39,7 +39,7 @@ export default function InventoryManagement({
 
     setLoading(true);
     try {
-      await api.addInventoryToArea(campId, rectangleId, selectedItem, quantity);
+      await api.addInventoryToArea(campId, polygonId, selectedItem, quantity);
       setSelectedItem('');
       setQuantity(1);
       onInventoryUpdated();
@@ -74,7 +74,7 @@ export default function InventoryManagement({
 
     setLoading(true);
     try {
-      await api.updateInventoryInArea(campId, rectangleId, itemId, newQuantity);
+      await api.updateInventoryInArea(campId, polygonId, itemId, newQuantity);
       onInventoryUpdated();
     } catch (error) {
       console.error('Failed to update inventory quantity:', error);
@@ -87,7 +87,7 @@ export default function InventoryManagement({
   const handleRemoveItem = async (itemId: string) => {
     setLoading(true);
     try {
-      await api.removeInventoryFromArea(campId, rectangleId, itemId);
+      await api.removeInventoryFromArea(campId, polygonId, itemId);
       onInventoryUpdated();
     } catch (error) {
       console.error('Failed to remove inventory item:', error);

@@ -1,10 +1,8 @@
-import type { LatLngExpression, LatLngBounds } from 'leaflet';
+import type { LatLngExpression } from 'leaflet';
 
-const API_BASE_URL = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:5001/api' 
-  : '/api';
+const API_BASE_URL = 'http://localhost:5001/api';
 
-// Types matching the backend schema
+// Common types
 export interface InventoryItem {
   id: string;
   name: string;
@@ -18,17 +16,11 @@ export interface InventoryItemCatalog {
   updatedAt?: string;
 }
 
-export interface RectangleAreaDB {
+// Database types (what comes from the API)
+export interface PolygonAreaDB {
   id: string;
   name: string;
-  bounds: {
-    southWest: { lat: number; lng: number };
-    northEast: { lat: number; lng: number };
-  };
-  rotation: number;
-  center: { lat: number; lng: number };
-  width: number;
-  height: number;
+  positions: { lat: number; lng: number }[];
   inventoryItems?: InventoryItem[];
 }
 
@@ -37,20 +29,16 @@ export interface CampDB {
   id: string;
   name: string;
   positions: { lat: number; lng: number }[];
-  rectangleAreas: RectangleAreaDB[];
+  polygonAreas: PolygonAreaDB[];
   createdAt?: string;
   updatedAt?: string;
 }
 
 // Frontend types (for compatibility with existing code)
-export interface RectangleArea {
+export interface PolygonArea {
   id: string;
   name: string;
-  bounds: LatLngBounds;
-  rotation: number;
-  center?: [number, number];
-  width?: number;
-  height?: number;
+  positions: LatLngExpression[];
   inventoryItems?: InventoryItem[];
 }
 
@@ -58,7 +46,7 @@ export interface Camp {
   id: string;
   name: string;
   positions: LatLngExpression[];
-  rectangleAreas: RectangleArea[];
+  polygonAreas: PolygonArea[];
 }
 
 // Convert from DB format to frontend format
@@ -67,46 +55,25 @@ const convertCampFromDB = (campDB: CampDB): Camp => {
     id: campDB.id,
     name: campDB.name,
     positions: campDB.positions.map(pos => [pos.lat, pos.lng] as LatLngExpression),
-    rectangleAreas: campDB.rectangleAreas.map(rect => ({
-      id: rect.id,
-      name: rect.name,
-      bounds: {
-        getSouthWest: () => ({ lat: rect.bounds.southWest.lat, lng: rect.bounds.southWest.lng }),
-        getNorthEast: () => ({ lat: rect.bounds.northEast.lat, lng: rect.bounds.northEast.lng }),
-      } as LatLngBounds,
-      rotation: rect.rotation,
-      center: [rect.center.lat, rect.center.lng] as [number, number],
-      width: rect.width,
-      height: rect.height,
-      inventoryItems: rect.inventoryItems || []
+    polygonAreas: campDB.polygonAreas.map(polygon => ({
+      id: polygon.id,
+      name: polygon.name,
+      positions: polygon.positions.map(pos => [pos.lat, pos.lng] as LatLngExpression),
+      inventoryItems: polygon.inventoryItems || []
     }))
   };
 };
 
 // Convert from frontend format to DB format
-const convertRectangleToDBFormat = (rect: RectangleArea) => {
-  const bounds = rect.bounds as any;
+const convertPolygonToDBFormat = (polygon: PolygonArea) => {
   return {
-    id: rect.id,
-    name: rect.name,
-    bounds: {
-      southWest: {
-        lat: bounds.getSouthWest ? bounds.getSouthWest().lat : bounds.southWest.lat,
-        lng: bounds.getSouthWest ? bounds.getSouthWest().lng : bounds.southWest.lng
-      },
-      northEast: {
-        lat: bounds.getNorthEast ? bounds.getNorthEast().lat : bounds.northEast.lat,
-        lng: bounds.getNorthEast ? bounds.getNorthEast().lng : bounds.northEast.lng
-      }
-    },
-    rotation: rect.rotation,
-    center: {
-      lat: rect.center ? rect.center[0] : 0,
-      lng: rect.center ? rect.center[1] : 0
-    },
-    width: rect.width || 0,
-    height: rect.height || 0,
-    inventoryItems: rect.inventoryItems || []
+    id: polygon.id,
+    name: polygon.name,
+    positions: polygon.positions.map(pos => {
+      const [lat, lng] = pos as [number, number];
+      return { lat, lng };
+    }),
+    inventoryItems: polygon.inventoryItems || []
   };
 };
 
@@ -128,7 +95,7 @@ export const api = {
   },
 
   // Create a new camp
-  async createCamp(camp: Omit<Camp, 'rectangleAreas'>): Promise<Camp> {
+  async createCamp(camp: Omit<Camp, 'polygonAreas'>): Promise<Camp> {
     try {
       const campData = {
         id: camp.id,
@@ -172,8 +139,8 @@ export const api = {
           return { lat, lng };
         });
       }
-      if (updates.rectangleAreas) {
-        updateData.rectangleAreas = updates.rectangleAreas.map(convertRectangleToDBFormat);
+      if (updates.polygonAreas) {
+        updateData.polygonAreas = updates.polygonAreas.map(convertPolygonToDBFormat);
       }
 
       const response = await fetch(`${API_BASE_URL}/camps/${campId}`, {
@@ -214,74 +181,74 @@ export const api = {
     }
   },
 
-  // Add rectangle to camp
-  async addRectangleTocamp(campId: string, rectangle: RectangleArea): Promise<Camp> {
+  // Add polygon to camp
+  async addPolygonToCamp(campId: string, polygon: PolygonArea): Promise<Camp> {
     try {
-      const rectangleData = convertRectangleToDBFormat(rectangle);
+      const polygonData = convertPolygonToDBFormat(polygon);
 
-      const response = await fetch(`${API_BASE_URL}/camps/${campId}/rectangles`, {
+      const response = await fetch(`${API_BASE_URL}/camps/${campId}/polygons`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(rectangleData),
+        body: JSON.stringify(polygonData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to add rectangle: ${response.statusText}`);
+        throw new Error(errorData.error || `Failed to add polygon: ${response.statusText}`);
       }
 
       const updatedCamp: CampDB = await response.json();
       return convertCampFromDB(updatedCamp);
     } catch (error) {
-      console.error('Error adding rectangle to camp:', error);
+      console.error('Error adding polygon to camp:', error);
       throw error;
     }
   },
 
-  // Update rectangle in camp
-  async updateRectangleInCamp(campId: string, rectangleId: string, rectangle: RectangleArea): Promise<Camp> {
+  // Update polygon in camp
+  async updatePolygonInCamp(campId: string, polygonId: string, polygon: PolygonArea): Promise<Camp> {
     try {
-      const rectangleData = convertRectangleToDBFormat(rectangle);
+      const polygonData = convertPolygonToDBFormat(polygon);
 
-      const response = await fetch(`${API_BASE_URL}/camps/${campId}/rectangles/${rectangleId}`, {
+      const response = await fetch(`${API_BASE_URL}/camps/${campId}/polygons/${polygonId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(rectangleData),
+        body: JSON.stringify(polygonData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to update rectangle: ${response.statusText}`);
+        throw new Error(errorData.error || `Failed to update polygon: ${response.statusText}`);
       }
 
       const updatedCamp: CampDB = await response.json();
       return convertCampFromDB(updatedCamp);
     } catch (error) {
-      console.error('Error updating rectangle in camp:', error);
+      console.error('Error updating polygon in camp:', error);
       throw error;
     }
   },
 
-  // Delete rectangle from camp
-  async deleteRectangleFromCamp(campId: string, rectangleId: string): Promise<Camp> {
+  // Delete polygon from camp
+  async deletePolygonFromCamp(campId: string, polygonId: string): Promise<Camp> {
     try {
-      const response = await fetch(`${API_BASE_URL}/camps/${campId}/rectangles/${rectangleId}`, {
+      const response = await fetch(`${API_BASE_URL}/camps/${campId}/polygons/${polygonId}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to delete rectangle: ${response.statusText}`);
+        throw new Error(errorData.error || `Failed to delete polygon: ${response.statusText}`);
       }
 
       const updatedCamp: CampDB = await response.json();
       return convertCampFromDB(updatedCamp);
     } catch (error) {
-      console.error('Error deleting rectangle from camp:', error);
+      console.error('Error deleting polygon from camp:', error);
       throw error;
     }
   },
@@ -322,9 +289,9 @@ export const api = {
     }
   },
 
-  async addInventoryToArea(campId: string, rectangleId: string, inventoryItemId: string, quantity: number): Promise<Camp> {
+  async addInventoryToArea(campId: string, polygonId: string, inventoryItemId: string, quantity: number): Promise<Camp> {
     try {
-      const response = await fetch(`${API_BASE_URL}/inventory/${campId}/rectangles/${rectangleId}/items`, {
+      const response = await fetch(`${API_BASE_URL}/inventory/${campId}/polygons/${polygonId}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -345,9 +312,9 @@ export const api = {
     }
   },
 
-  async updateInventoryInArea(campId: string, rectangleId: string, itemId: string, quantity: number): Promise<Camp> {
+  async updateInventoryInArea(campId: string, polygonId: string, itemId: string, quantity: number): Promise<Camp> {
     try {
-      const response = await fetch(`${API_BASE_URL}/inventory/${campId}/rectangles/${rectangleId}/items/${itemId}`, {
+      const response = await fetch(`${API_BASE_URL}/inventory/${campId}/polygons/${polygonId}/items/${itemId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -368,9 +335,9 @@ export const api = {
     }
   },
 
-  async removeInventoryFromArea(campId: string, rectangleId: string, itemId: string): Promise<Camp> {
+  async removeInventoryFromArea(campId: string, polygonId: string, itemId: string): Promise<Camp> {
     try {
-      const response = await fetch(`${API_BASE_URL}/inventory/${campId}/rectangles/${rectangleId}/items/${itemId}`, {
+      const response = await fetch(`${API_BASE_URL}/inventory/${campId}/polygons/${polygonId}/items/${itemId}`, {
         method: 'DELETE',
       });
 
