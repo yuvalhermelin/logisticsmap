@@ -144,6 +144,28 @@ function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, cam
 
           {
             <div className="mt-3 pt-3 border-t space-y-2">
+              {/* Description */}
+              {isArchiveMode ? (
+                <div className="text-xs text-gray-700">
+                  <div className="font-semibold mb-1">תיאור:</div>
+                  <div className="whitespace-pre-wrap break-words">{polygon.description || '—'}</div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-xs text-gray-700 font-semibold mb-1">תיאור</div>
+                  <textarea
+                    defaultValue={polygon.description || ''}
+                    placeholder="הכנס תיאור חופשי..."
+                    className="w-full text-xs border border-gray-300 rounded p-2"
+                    rows={3}
+                    onBlur={(e) => {
+                      const desc = e.target.value;
+                      const updated: PolygonArea = { ...polygon, description: desc || null };
+                      onUpdate(updated);
+                    }}
+                  />
+                </div>
+              )}
               {isArchiveMode ? (
                 <div className="text-xs text-gray-700 space-y-1">
                   <div>סוג: {polygon.typeName || '—'}</div>

@@ -36,6 +36,7 @@ export interface PolygonAreaDB {
   typeName?: string | null;
   statusId?: string | null;
   statusName?: string | null;
+  description?: string | null;
   positions: { lat: number; lng: number }[];
   inventoryItems?: InventoryItem[];
   files?: FileItem[];
@@ -60,6 +61,7 @@ export interface PolygonArea {
   typeName?: string | null;
   statusId?: string | null;
   statusName?: string | null;
+  description?: string | null;
   positions: LatLngExpression[];
   inventoryItems?: InventoryItem[];
   files?: FileItem[];
@@ -87,6 +89,7 @@ const convertCampFromDB = (campDB: CampDB): Camp => {
       typeName: polygon.typeName ?? null,
       statusId: polygon.statusId ?? null,
       statusName: polygon.statusName ?? null,
+      description: polygon.description ?? null,
       positions: polygon.positions.map(pos => [pos.lat, pos.lng] as LatLngExpression),
       inventoryItems: polygon.inventoryItems || [],
       files: polygon.files || []
@@ -103,6 +106,7 @@ const convertPolygonToDBFormat = (polygon: PolygonArea) => {
     typeName: polygon.typeName ?? null,
     statusId: polygon.statusId ?? null,
     statusName: polygon.statusName ?? null,
+    description: polygon.description ?? null,
     positions: polygon.positions.map(pos => {
       const [lat, lng] = pos as [number, number];
       return { lat, lng };

@@ -249,6 +249,9 @@ export default function Camps() {
                                         {area.statusName && (
                                           <div className="text-xs text-gray-500">סטטוס: {area.statusName}</div>
                                         )}
+                                        {area.description && (
+                                          <div className="text-xs text-gray-600 whitespace-pre-wrap break-words mt-1">{area.description}</div>
+                                        )}
                                       </td>
                                       <td className="px-4 py-2 text-sm text-gray-500 font-mono">
                                         {area.id}
