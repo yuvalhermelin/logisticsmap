@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, Marker, Popup, Polygon, FeatureGroup, Rectangle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polygon, FeatureGroup, Rectangle, Tooltip } from 'react-leaflet';
 import type { LatLngExpression, LatLngBounds } from 'leaflet';
 import { useEffect, useState, useRef } from 'react';
 import { EditControl } from 'react-leaflet-draw';
@@ -91,9 +91,13 @@ interface EditablePolygonProps {
   campName: string;
   campId: string;
   onInventoryUpdated: () => void;
+  currentZoom: number;
+  labelZoomThreshold: number;
+  labelEnabled: boolean;
+  areaTypes: { id: string; name: string }[];
 }
 
-function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, campId, onInventoryUpdated }: EditablePolygonProps) {
+function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, campId, onInventoryUpdated, currentZoom, labelZoomThreshold, labelEnabled, areaTypes }: EditablePolygonProps) {
   return (
     <Polygon
       positions={polygon.positions}
@@ -103,6 +107,12 @@ function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, cam
       weight={2}
       interactive={true}
     >
+      {/* Type label overlay (only when zoomed in sufficiently) */}
+      {polygon.typeName && labelEnabled && currentZoom >= labelZoomThreshold && (
+        <Tooltip permanent direction="center" opacity={1} className="!bg-white !bg-opacity-80 !text-gray-800 !px-2 !py-1 !rounded !border !border-gray-300">
+          <span className="text-xs font-semibold">{polygon.typeName}</span>
+        </Tooltip>
+      )}
       <Popup maxWidth={400}>
         <div style={{ minWidth: '300px', direction: 'rtl', textAlign: 'right' }}>
           <div className="border-b pb-2 mb-3">
@@ -155,18 +165,16 @@ function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, cam
                         return;
                       }
                     } else if (selectedId) {
-                      const picked = areaTypes.find(t => t.id === selectedId);
+                      const picked = areaTypes.find((t) => t.id === selectedId);
                       typeName = picked ? picked.name : null;
                     }
                     const updated: PolygonArea = { ...polygon, typeId, typeName };
-                    await updatePolygonArea(campId, updated);
-                    // Refresh camps to ensure UI sync
-                    api.getCamps().then(setCamps).catch(console.error);
+                    onUpdate(updated);
                   }}
                   className="px-2 py-1 text-xs border border-gray-300 rounded"
                 >
                   <option value="">בחר סוג אזור...</option>
-                  {areaTypes.map(t => (
+                  {areaTypes.map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                   <option value="__new">+ הוסף סוג חדש</option>
@@ -556,11 +564,21 @@ export default function Map({
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
   const [editingCampId, setEditingCampId] = useState<string | null>(null);
   const [areaTypes, setAreaTypes] = useState<{ id: string; name: string }[]>([]);
+  const [labelsEnabled, setLabelsEnabled] = useState<boolean>(true);
   const featureGroupRef = useRef<any>(null);
+  const mapRef = useRef<any>(null);
+  const [currentZoom, setCurrentZoom] = useState<number>(zoom);
+  const LABEL_ZOOM_THRESHOLD = 13;
   const originalBoundsRef = useRef<{[key: string]: any}>({});
   const layerToPolygonRef = useRef<{[key: string]: {campId: string, polygonId: string}}>({});
   const layerToCampRef = useRef<{[key: string]: string}>({});
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (mapRef.current) {
+      mapRef.current.on('zoomend', () => setCurrentZoom(mapRef.current.getZoom()));
+    }
+  }, [mapRef.current]);
 
   // Add custom CSS for leaflet-draw tooltips to make them less intrusive
   useEffect(() => {
@@ -1338,6 +1356,7 @@ export default function Map({
           zoom={zoom}
           style={style}
           scrollWheelZoom={true}
+          ref={mapRef}
         >
           <TileLayer
             url={tileUrl}
@@ -1360,6 +1379,16 @@ export default function Map({
             onToggleEditCamp={toggleEditCamp}
             onDeleteCamp={deleteCamp}
           />
+
+          {/* Labels toggle control */}
+          <div className="leaflet-top leaflet-right" style={{ pointerEvents: 'auto', marginTop: '80px', marginRight: '10px' }}>
+            <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl' }}>
+              <label className="flex items-center space-x-2" style={{ gap: '8px' }}>
+                <input type="checkbox" checked={labelsEnabled} onChange={(e) => setLabelsEnabled(e.target.checked)} />
+                <span className="text-xs">הצג תוויות</span>
+              </label>
+            </div>
+          </div>
           
           {/* Feature group for drawing controls */}
           <FeatureGroup ref={featureGroupRef}>
@@ -1409,6 +1438,11 @@ export default function Map({
                 weight={editingCampId === camp.id ? 5 : (selectedCampId === camp.id ? 4 : 2)}
                 dashArray={editingCampId === camp.id ? "5, 5" : (selectedCampId === camp.id ? "10, 5" : undefined)}
               >
+                {labelsEnabled && currentZoom < LABEL_ZOOM_THRESHOLD && (
+                  <Tooltip permanent direction="center" opacity={1} className="!bg-white !bg-opacity-80 !text-gray-800 !px-2 !py-1 !rounded !border !border-gray-300">
+                    <span className="text-xs font-semibold">{camp.name}</span>
+                  </Tooltip>
+                )}
                 <Popup>
                   <div style={{ direction: 'rtl', textAlign: 'right' }}>
                     <strong>מחנה: {camp.name}</strong>
@@ -1458,6 +1492,10 @@ export default function Map({
                     // Reload camps to get updated inventory data
                     api.getCamps().then(setCamps).catch(console.error);
                   }}
+                  currentZoom={currentZoom}
+                  labelZoomThreshold={LABEL_ZOOM_THRESHOLD}
+                  labelEnabled={labelsEnabled}
+                  areaTypes={areaTypes}
                 />
               ))}
             </div>
