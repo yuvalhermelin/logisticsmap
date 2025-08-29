@@ -26,6 +26,7 @@ export default function Tracking() {
   const [expiries, setExpiries] = useState<ExpiryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autoApplyReady, setAutoApplyReady] = useState(false);
   const [filters, setFilters] = useState<{
     q: string;
     itemName: string;
@@ -63,6 +64,8 @@ export default function Tracking() {
       }
     };
     init();
+    // Enable auto-apply after initial data is loaded
+    setAutoApplyReady(true);
   }, []);
 
   const loadExpiries = async () => {
@@ -87,6 +90,16 @@ export default function Tracking() {
       setLoading(false);
     }
   };
+
+  // Auto-apply filters with debounce
+  useEffect(() => {
+    if (!autoApplyReady) return;
+    const handle = setTimeout(() => {
+      loadExpiries();
+    }, 300);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, autoApplyReady]);
 
   const areasForSelectedCamp = useMemo(() => {
     const camp = camps.find(c => c.id === filters.campId);
@@ -262,12 +275,6 @@ export default function Tracking() {
             className="px-4 py-2 border border-gray-300 rounded"
           >
             נקה
-          </button>
-          <button
-            onClick={loadExpiries}
-            className="px-4 py-2 bg-blue-600 text-white rounded"
-          >
-            סנן
           </button>
         </div>
       </div>

@@ -448,6 +448,11 @@ router.get('/expiries', async (req, res) => {
     if (statusId) matchAreaStage.statusId = statusId;
     // Exclude archived via lookup below
 
+    // Apply area-level filters before unwinding items
+    if (Object.keys(matchAreaStage).length > 0) {
+      pipeline.push({ $match: matchAreaStage });
+    }
+
     pipeline.push({ $unwind: '$inventoryItems' });
     
     const now = new Date();
