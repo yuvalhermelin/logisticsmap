@@ -4,7 +4,7 @@ import { api, type Camp, type PolygonArea, type InventoryItem } from "../service
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "סקירת מחנות - מפה לוגיסטית" },
+    { title: "סקירת מחנות - המכולה" },
     { name: "description", content: "צפה בכל המחנות, האזורים והמלבנים בפורמט טבלה מפורט" },
   ];
 }

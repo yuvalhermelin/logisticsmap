@@ -1,86 +1,75 @@
-import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import { useEffect, useMemo, useState } from "react";
+import { api, type Camp } from "../services/api";
 
 export function meta() {
   return [
-    { title: "מעקב והתראות מלאי - מפה לוגיסטית" },
-    { name: "description", content: "ניהול התראות לרמות מלאי נמוכות" },
+    { title: "תפוגות והתראות - המכולה" },
+    { name: "description", content: "מעקב אחר פריטים עם תאריך תפוגה וניהול תאריכי תפוגה" },
   ];
 }
 
-interface Alert {
-  id: string;
+interface ExpiryItem {
+  itemId: string;
   itemName: string;
-  alertType: 'area' | 'global';
-  threshold: number;
-  campId?: string;
-  campName?: string;
-  areaId?: string;
-  areaName?: string;
-  isActive: boolean;
-  createdAt: string;
-  currentQuantity?: number;
-  isTriggered?: boolean;
-}
-
-interface CreateAlertForm {
-  itemName: string;
-  alertType: 'area' | 'global';
-  threshold: string;
+  quantity: number;
+  expiryDate: string | null;
+  addedAt?: string;
   campId: string;
+  campName: string;
   areaId: string;
-}
-
-interface Camp {
-  id: string;
-  name: string;
-  rectangleAreas: Array<{
-    id: string;
-    name: string;
-  }>;
+  areaName: string;
+  isExpired: boolean;
 }
 
 export default function Tracking() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [triggeredAlerts, setTriggeredAlerts] = useState<Alert[]>([]);
   const [camps, setCamps] = useState<Camp[]>([]);
-  const [availableItems, setAvailableItems] = useState<string[]>([]);
+  const [expiries, setExpiries] = useState<ExpiryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'active' | 'triggered' | 'create'>('active');
-
-  const [createForm, setCreateForm] = useState<CreateAlertForm>({
-    itemName: '',
-    alertType: 'global',
-    threshold: '',
-    campId: '',
-    areaId: ''
-  });
+  const [filters, setFilters] = useState<{
+    q: string;
+    itemName: string;
+    campId: string;
+    areaId: string;
+    status: 'expired' | 'active' | 'all';
+    dateFrom: string;
+    dateTo: string;
+  }>({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '' });
+  const [draftExpiryByKey, setDraftExpiryByKey] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    loadData();
+    const init = async () => {
+      try {
+        setLoading(true);
+        const [campsData, expiriesData] = await Promise.all([
+          api.getCamps(),
+          api.getExpiries({ status: 'expired' })
+        ]);
+        setCamps(campsData);
+        setExpiries(expiriesData);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'נכשל בטעינת הנתונים');
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
   }, []);
 
-  const loadData = async () => {
+  const loadExpiries = async () => {
     try {
       setLoading(true);
-      const [alertsData, campsData, analytics] = await Promise.all([
-        api.getAlerts(),
-        api.getCamps(),
-        api.getInventoryAnalytics()
-      ]);
-      
-      setAlerts(alertsData);
-      setCamps(campsData);
-      
-      // Extract unique item names from analytics
-      const itemNames = Object.keys(analytics.itemDistribution || {});
-      setAvailableItems(itemNames);
-      
-      // Load triggered alerts
-      const triggered = await api.getTriggeredAlerts();
-      setTriggeredAlerts(triggered);
-      
+      const data = await api.getExpiries({
+        q: filters.q || undefined,
+        itemName: filters.itemName || undefined,
+        campId: filters.campId || undefined,
+        areaId: filters.areaId || undefined,
+        status: filters.status,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+      });
+      setExpiries(data);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'נכשל בטעינת הנתונים');
@@ -89,71 +78,39 @@ export default function Tracking() {
     }
   };
 
-  const handleCreateAlert = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!createForm.itemName || !createForm.threshold) {
-      alert('נא למלא את כל השדות הנדרשים');
-      return;
-    }
+  const areasForSelectedCamp = useMemo(() => {
+    const camp = camps.find(c => c.id === filters.campId);
+    return camp ? camp.polygonAreas : [];
+  }, [camps, filters.campId]);
 
+  const handleChangeExpiry = async (item: ExpiryItem, newDate: string) => {
     try {
-      const alertData = {
-        itemName: createForm.itemName,
-        alertType: createForm.alertType,
-        threshold: parseInt(createForm.threshold),
-        campId: createForm.alertType === 'area' ? createForm.campId : undefined,
-        areaId: createForm.alertType === 'area' ? createForm.areaId : undefined,
-        isActive: true
-      };
-
-      await api.createAlert(alertData);
-      await loadData();
-      setCreateForm({
-        itemName: '',
-        alertType: 'global',
-        threshold: '',
-        campId: '',
-        areaId: ''
-      });
-      setActiveTab('active');
+      setLoading(true);
+      await api.updateInventoryInArea(item.campId, item.areaId, item.itemId, item.quantity, newDate || null);
+      await loadExpiries();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'נכשל ביצירת ההתראה');
+      alert(err instanceof Error ? err.message : 'נכשל בעדכון תאריך התפוגה');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleToggleAlert = async (alertId: string, isActive: boolean) => {
-    try {
-      await api.updateAlert(alertId, { isActive: !isActive });
-      await loadData();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'נכשל בעדכון ההתראה');
+  const normalizedDate = (iso?: string | null) => iso ? new Date(iso).toISOString().substring(0,10) : '';
+  const itemKey = (i: ExpiryItem) => `${i.areaId}-${i.itemId}`;
+  const saveIfChanged = async (i: ExpiryItem) => {
+    const key = itemKey(i);
+    const draft = draftExpiryByKey[key];
+    const original = normalizedDate(i.expiryDate);
+    if (draft !== undefined && draft !== original) {
+      await handleChangeExpiry(i, draft);
     }
+    setDraftExpiryByKey(prev => {
+      const { [key]: _, ...rest } = prev;
+      return rest;
+    });
   };
 
-  const handleUpdateThreshold = async (alertId: string, threshold: number) => {
-    try {
-      await api.updateAlert(alertId, { threshold });
-      await loadData();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'נכשל בעדכון הסף');
-    }
-  };
-
-  const handleDeleteAlert = async (alertId: string) => {
-    if (!confirm('האם אתה בטוח שברצונך למחוק התראה זו?')) return;
-    
-    try {
-      await api.deleteAlert(alertId);
-      await loadData();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'נכשל במחיקת ההתראה');
-    }
-  };
-
-  const getSelectedCamp = () => {
-    return camps.find(camp => camp.id === createForm.campId);
-  };
+  // legacy alert handlers removed
 
   if (loading) {
     return (
@@ -175,7 +132,7 @@ export default function Tracking() {
           <h2 className="text-lg font-medium text-red-800 mb-2">שגיאה</h2>
           <p className="text-red-600">{error}</p>
           <button 
-            onClick={loadData}
+            onClick={loadExpiries}
             className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >
             🔄 נסה שוב
@@ -187,404 +144,157 @@ export default function Tracking() {
 
   return (
     <main className="pt-16 p-4 container mx-auto">
-      {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">מעקב והתראות מלאי</h1>
-        <p className="text-gray-600">
-          הגדר התראות עבור רמות מלאי נמוכות באזורים ספציפיים או ברמה הגלובלית
-        </p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">תפוגות והתראות</h1>
+        <p className="text-gray-600">פריטי מלאי עם תאריך תפוגה. פריטים שפגו מוצגים תחילה.</p>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="mb-6">
-        <nav className="flex space-x-4">
-          {[
-            { id: 'active', label: `התראות פעילות (${alerts.filter(a => a.isActive).length})` },
-            { id: 'triggered', label: `התראות שהופעלו (${triggeredAlerts.length})` },
-            { id: 'create', label: 'הוסף התראה חדשה' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">חיפוש</label>
+            <input
+              type="text"
+              value={filters.q}
+              onChange={(e) => setFilters(prev => ({ ...prev, q: e.target.value }))}
+              placeholder="חפש בשם פריט/מחנה/אזור"
+              className="w-full px-3 py-2 border border-gray-300 rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">סטטוס</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value as any }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded"
             >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+              <option value="expired">פג</option>
+              <option value="active">פעיל</option>
+              <option value="all">הכל</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">מחנה</label>
+            <select
+              value={filters.campId}
+              onChange={(e) => setFilters(prev => ({ ...prev, campId: e.target.value, areaId: '' }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded"
+            >
+              <option value="">הכל</option>
+              {camps.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">אזור</label>
+            <select
+              value={filters.areaId}
+              onChange={(e) => setFilters(prev => ({ ...prev, areaId: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded"
+              disabled={!filters.campId}
+            >
+              <option value="">הכל</option>
+              {areasForSelectedCamp.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">מתאריך</label>
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">עד תאריך</label>
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end mt-3 space-x-2">
+          <button
+            onClick={() => setFilters({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '' })}
+            className="px-4 py-2 border border-gray-300 rounded"
+          >
+            נקה
+          </button>
+          <button
+            onClick={loadExpiries}
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            סנן
+          </button>
+        </div>
       </div>
 
-      {/* Triggered Alerts Banner */}
-      {triggeredAlerts.length > 0 && (
-        <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <span className="text-red-400 text-xl">⚠️</span>
-            </div>
-            <div className="mr-3">
-              <h3 className="text-sm font-medium text-red-800">
-                התראות פעילות ({triggeredAlerts.length})
-              </h3>
-              <p className="text-sm text-red-700">
-                יש פריטי מלאי שירדו מתחת לסף שהוגדר
-              </p>
-            </div>
-          </div>
+      {/* Expiries Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">פריטים עם תאריך תפוגה</h3>
         </div>
-      )}
-
-      {/* Active Alerts Tab */}
-      {activeTab === 'active' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">התראות פעילות</h3>
-            </div>
-            
-            {alerts.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        פריט
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        סוג התראה
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        מיקום
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        סף התראה
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        כמות נוכחית
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        סטטוס
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        פעולות
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {alerts.map((alert) => (
-                      <tr key={alert.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{alert.itemName}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            alert.alertType === 'global' 
-                              ? 'bg-purple-100 text-purple-800' 
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {alert.alertType === 'global' ? 'גלובלי' : 'אזורי'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {alert.alertType === 'area' ? (
-                            <div>
-                              <div className="text-sm text-gray-900">{alert.campName}</div>
-                              <div className="text-sm text-gray-500">{alert.areaName}</div>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-gray-500">כל המערכת</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">≤{alert.threshold}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className={`text-sm font-medium ${
-                            alert.isTriggered ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            {alert.currentQuantity !== undefined ? alert.currentQuantity : 'לא ידוע'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={alert.isActive}
-                                onChange={() => handleToggleAlert(alert.id, alert.isActive)}
-                                className="sr-only peer"
-                              />
-                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            </label>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => {
-                                const newThreshold = prompt('הכנס סף התראה חדש:', alert.threshold.toString());
-                                if (newThreshold && !isNaN(parseInt(newThreshold))) {
-                                  handleUpdateThreshold(alert.id, parseInt(newThreshold));
-                                }
-                              }}
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              ערוך
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAlert(alert.id)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              מחק
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="px-6 py-12 text-center">
-                <div className="mx-auto h-12 w-12 bg-gray-400 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold">🔔</span>
-                </div>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">אין התראות פעילות</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  התחל על ידי יצירת התראה חדשה
-                </p>
-                <button
-                  onClick={() => setActiveTab('create')}
-                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  הוסף התראה
-                </button>
-              </div>
-            )}
+        {expiries.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">פריט</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">מחנה</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">אזור</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">כמות</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תאריך תפוגה</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סטטוס</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {expiries.map(item => (
+                  <tr key={`${item.areaId}-${item.itemId}`} className="hover:bg-gray-50">
+                    <td className="px-6 py-3 whitespace-nowrap text-sm">{item.itemName}</td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm">{item.campName}</td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm">{item.areaName}</td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm">{item.quantity}</td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm">
+                      <input
+                        type="date"
+                        value={draftExpiryByKey[itemKey(item)] ?? normalizedDate(item.expiryDate)}
+                        onChange={(e) => setDraftExpiryByKey(prev => ({ ...prev, [itemKey(item)]: e.target.value }))}
+                        onBlur={() => saveIfChanged(item)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                          } else if (e.key === 'Escape') {
+                            setDraftExpiryByKey(prev => {
+                              const { [itemKey(item)]: _, ...rest } = prev;
+                              return rest;
+                            });
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        className="px-2 py-1 border border-gray-300 rounded"
+                      />
+                    </td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${item.isExpired ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                        {item.isExpired ? 'פג' : 'פעיל'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-      )}
-
-      {/* Triggered Alerts Tab */}
-      {activeTab === 'triggered' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">התראות שהופעלו</h3>
-            </div>
-            
-            {triggeredAlerts.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        פריט
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        מיקום
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        סף התראה
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        כמות נוכחית
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        רמת דחיפות
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {triggeredAlerts.map((alert) => {
-                      const urgencyLevel = alert.currentQuantity !== undefined && alert.currentQuantity === 0 
-                        ? 'critical' 
-                        : alert.currentQuantity !== undefined && alert.currentQuantity < (alert.threshold * 0.5)
-                        ? 'high'
-                        : 'medium';
-                      
-                      return (
-                        <tr key={alert.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{alert.itemName}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {alert.alertType === 'area' ? (
-                              <div>
-                                <div className="text-sm text-gray-900">{alert.campName}</div>
-                                <div className="text-sm text-gray-500">{alert.areaName}</div>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-500">כל המערכת</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">≤{alert.threshold}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-red-600">
-                              {alert.currentQuantity !== undefined ? alert.currentQuantity : 'לא ידוע'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              urgencyLevel === 'critical' 
-                                ? 'bg-red-100 text-red-800' 
-                                : urgencyLevel === 'high'
-                                ? 'bg-orange-100 text-orange-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {urgencyLevel === 'critical' ? 'קריטי' : urgencyLevel === 'high' ? 'גבוה' : 'בינוני'}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="px-6 py-12 text-center">
-                <div className="mx-auto h-12 w-12 bg-green-400 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold">✓</span>
-                </div>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">אין התראות פעילות</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  כל רמות המלאי תקינות
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Create Alert Tab */}
-      {activeTab === 'create' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">הוסף התראה חדשה</h3>
-            
-            <form onSubmit={handleCreateAlert} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">פריט מלאי</label>
-                  <select
-                    value={createForm.itemName}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, itemName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">בחר פריט...</option>
-                    {availableItems.map(item => (
-                      <option key={item} value={item}>{item}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">סוג התראה</label>
-                  <select
-                    value={createForm.alertType}
-                    onChange={(e) => setCreateForm(prev => ({ 
-                      ...prev, 
-                      alertType: e.target.value as 'area' | 'global',
-                      campId: '',
-                      areaId: ''
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="global">התראה גלובלית (כל המערכת)</option>
-                    <option value="area">התראה אזורית (אזור ספציפי)</option>
-                  </select>
-                </div>
-
-                {createForm.alertType === 'area' && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">מחנה</label>
-                      <select
-                        value={createForm.campId}
-                        onChange={(e) => setCreateForm(prev => ({ 
-                          ...prev, 
-                          campId: e.target.value,
-                          areaId: ''
-                        }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required={createForm.alertType === 'area'}
-                      >
-                        <option value="">בחר מחנה...</option>
-                        {camps.map(camp => (
-                          <option key={camp.id} value={camp.id}>{camp.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">אזור</label>
-                      <select
-                        value={createForm.areaId}
-                        onChange={(e) => setCreateForm(prev => ({ ...prev, areaId: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        required={createForm.alertType === 'area'}
-                        disabled={!createForm.campId}
-                      >
-                        <option value="">בחר אזור...</option>
-                        {getSelectedCamp()?.rectangleAreas.map(area => (
-                          <option key={area.id} value={area.id}>{area.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">סף התראה (כמות)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={createForm.threshold}
-                    onChange={(e) => setCreateForm(prev => ({ ...prev, threshold: e.target.value }))}
-                    placeholder="הכנס כמות מינימלית..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                  <p className="mt-1 text-sm text-gray-500">
-                    תתקבל התראה כאשר הכמות תירד מתחת לערך זה
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('active')}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  ביטול
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  צור התראה
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Alert Types Explanation */}
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">הסבר על סוגי התראות:</h4>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li><strong>התראה גלובלית:</strong> מעקב אחר הכמות הכוללת של הפריט בכל המערכת</li>
-              <li><strong>התראה אזורית:</strong> מעקב אחר הכמות של הפריט באזור ספציפי בתוך מחנה</li>
-            </ul>
-          </div>
-        </div>
-      )}
+        ) : (
+          <div className="px-6 py-12 text-center text-sm text-gray-600">אין פריטים להצגה</div>
+        )}
+      </div>
     </main>
   );
 } 

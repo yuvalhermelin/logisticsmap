@@ -4,7 +4,7 @@ import { api } from "../services/api";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "אנליטיקת מלאי - מפה לוגיסטית" },
+    { title: "אנליטיקת מלאי - המכולה" },
     { name: "description", content: "לוח מחוונים למודיעין עסקי לניהול מלאי" },
   ];
 }

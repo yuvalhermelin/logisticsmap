@@ -7,6 +7,8 @@ export interface InventoryItem {
   id: string;
   name: string;
   quantity: number;
+  expiryDate?: string | null;
+  addedAt?: string;
 }
 
 export interface FileItem {
@@ -303,14 +305,14 @@ export const api = {
     }
   },
 
-  async addInventoryToArea(campId: string, polygonId: string, inventoryItemId: string, quantity: number): Promise<Camp> {
+  async addInventoryToArea(campId: string, polygonId: string, inventoryItemId: string, quantity: number, expiryDate?: string | null): Promise<Camp> {
     try {
       const response = await fetch(`${API_BASE_URL}/inventory/${campId}/polygons/${polygonId}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ inventoryItemId, quantity }),
+        body: JSON.stringify({ inventoryItemId, quantity, expiryDate }),
       });
 
       if (!response.ok) {
@@ -326,14 +328,14 @@ export const api = {
     }
   },
 
-  async updateInventoryInArea(campId: string, polygonId: string, itemId: string, quantity: number): Promise<Camp> {
+  async updateInventoryInArea(campId: string, polygonId: string, itemId: string, quantity: number, expiryDate?: string | null): Promise<Camp> {
     try {
       const response = await fetch(`${API_BASE_URL}/inventory/${campId}/polygons/${polygonId}/items/${itemId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ quantity }),
+        body: JSON.stringify({ quantity, expiryDate }),
       });
 
       if (!response.ok) {
@@ -507,100 +509,47 @@ export const api = {
     }
   },
 
-  // Tracking & Alerts endpoints
-  async getAlerts(): Promise<any[]> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/alerts`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch alerts: ${response.statusText}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching alerts:', error);
-      throw error;
-    }
-  },
+  // Tracking & Alerts endpoints (legacy - no longer used by UI)
+  async getAlerts(): Promise<any[]> { return []; },
 
-  async createAlert(alert: {
-    itemName: string;
-    alertType: 'area' | 'global';
-    threshold: number;
+  // Expiries listing (new alerts source)
+  async getExpiries(params?: {
+    q?: string;
+    itemName?: string;
     campId?: string;
     areaId?: string;
-    isActive?: boolean;
-  }): Promise<any> {
+    status?: 'expired' | 'active' | 'all';
+    dateFrom?: string; // ISO
+    dateTo?: string;   // ISO
+  }): Promise<any[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(alert),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to create alert: ${response.statusText}`);
+      const searchParams = new URLSearchParams();
+      if (params) {
+        if (params.q) searchParams.append('q', params.q);
+        if (params.itemName) searchParams.append('itemName', params.itemName);
+        if (params.campId) searchParams.append('campId', params.campId);
+        if (params.areaId) searchParams.append('areaId', params.areaId);
+        if (params.status) searchParams.append('status', params.status);
+        if (params.dateFrom) searchParams.append('dateFrom', params.dateFrom);
+        if (params.dateTo) searchParams.append('dateTo', params.dateTo);
       }
-
+      const qs = searchParams.toString();
+      const response = await fetch(`${API_BASE_URL}/inventory/expiries${qs ? `?${qs}` : ''}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch expiries: ${response.statusText}`);
+      }
       return await response.json();
     } catch (error) {
-      console.error('Error creating alert:', error);
+      console.error('Error fetching expiries:', error);
       throw error;
     }
   },
 
-  async updateAlert(alertId: string, updates: {
-    threshold?: number;
-    isActive?: boolean;
-  }): Promise<any> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      });
+  async createAlert(): Promise<any> { throw new Error('Alerts creation is deprecated'); },
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to update alert: ${response.statusText}`);
-      }
+  async updateAlert(): Promise<any> { throw new Error('Alerts are deprecated'); },
 
-      return await response.json();
-    } catch (error) {
-      console.error('Error updating alert:', error);
-      throw error;
-    }
-  },
+  async deleteAlert(): Promise<void> { throw new Error('Alerts are deprecated'); },
 
-  async deleteAlert(alertId: string): Promise<void> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to delete alert: ${response.statusText}`);
-      }
-    } catch (error) {
-      console.error('Error deleting alert:', error);
-      throw error;
-    }
-  },
-
-  async getTriggeredAlerts(): Promise<any[]> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/alerts/triggered`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch triggered alerts: ${response.statusText}`);
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching triggered alerts:', error);
-      throw error;
-    }
-  }
+  async getTriggeredAlerts(): Promise<any[]> { return []; }
 }; 

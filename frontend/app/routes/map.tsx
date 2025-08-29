@@ -3,7 +3,7 @@ import ClientOnlyMap from "../components/ClientOnlyMap";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "תצוגת מפה - מפה לוגיסטית" },
+    { title: "תצוגת מפה - המכולה" },
     { name: "description", content: "מפה אינטראקטיבית המציגה אריחי ישראל" },
   ];
 };

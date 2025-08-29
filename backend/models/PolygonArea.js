@@ -16,6 +16,18 @@ const inventoryItemSchema = new mongoose.Schema({
     required: true,
     min: 0,
     default: 0
+  },
+  // Optional expiry date for the entire quantity in this batch
+  expiryDate: {
+    type: Date,
+    required: false,
+    default: null
+  },
+  // Timestamp when this batch was added
+  addedAt: {
+    type: Date,
+    required: true,
+    default: Date.now
   }
 }, { _id: false });
 
@@ -81,5 +93,6 @@ const polygonAreaSchema = new mongoose.Schema({
 // Indexes for better query performance
 polygonAreaSchema.index({ campId: 1 });
 polygonAreaSchema.index({ 'inventoryItems.name': 1 });
+polygonAreaSchema.index({ 'inventoryItems.expiryDate': 1 });
 
 module.exports = mongoose.model('PolygonArea', polygonAreaSchema); 

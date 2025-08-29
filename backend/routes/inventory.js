@@ -46,7 +46,7 @@ router.post('/catalog', async (req, res) => {
 router.post('/:campId/polygons/:polygonId/items', async (req, res) => {
   try {
     const { campId, polygonId } = req.params;
-    const { inventoryItemId, quantity } = req.body;
+    const { inventoryItemId, quantity, expiryDate } = req.body;
     
     if (!inventoryItemId || quantity < 0) {
       return res.status(400).json({ error: 'Invalid inventory item data' });
@@ -68,20 +68,13 @@ router.post('/:campId/polygons/:polygonId/items', async (req, res) => {
       return res.status(404).json({ error: 'Polygon area not found' });
     }
     
-    // Check if item already exists in this area
-    const existingItemIndex = polygonArea.inventoryItems.findIndex(item => item.name === catalogItem.name);
-    
-    if (existingItemIndex >= 0) {
-      // Update quantity if item already exists
-      polygonArea.inventoryItems[existingItemIndex].quantity = quantity;
-    } else {
-      // Add new item
-      polygonArea.inventoryItems.push({
-        id: uuidv4(),
-        name: catalogItem.name,
-        quantity: quantity
-      });
-    }
+    // Always create a new batch so expiry can be tracked per addition
+    polygonArea.inventoryItems.push({
+      id: uuidv4(),
+      name: catalogItem.name,
+      quantity: quantity,
+      expiryDate: expiryDate ? new Date(expiryDate) : null
+    });
     
     await polygonArea.save();
     
@@ -101,9 +94,9 @@ router.post('/:campId/polygons/:polygonId/items', async (req, res) => {
 router.put('/:campId/polygons/:polygonId/items/:itemId', async (req, res) => {
   try {
     const { campId, polygonId, itemId } = req.params;
-    const { quantity } = req.body;
+    const { quantity, expiryDate } = req.body;
     
-    if (quantity < 0) {
+    if (quantity !== undefined && quantity < 0) {
       return res.status(400).json({ error: 'Quantity cannot be negative' });
     }
     
@@ -123,7 +116,12 @@ router.put('/:campId/polygons/:polygonId/items/:itemId', async (req, res) => {
       return res.status(404).json({ error: 'Inventory item not found in area' });
     }
     
-    polygonArea.inventoryItems[itemIndex].quantity = quantity;
+    if (quantity !== undefined) {
+      polygonArea.inventoryItems[itemIndex].quantity = quantity;
+    }
+    if (req.body.hasOwnProperty('expiryDate')) {
+      polygonArea.inventoryItems[itemIndex].expiryDate = expiryDate ? new Date(expiryDate) : null;
+    }
     await polygonArea.save();
     
     // Return the camp with all its polygon areas for backward compatibility
@@ -416,6 +414,94 @@ router.get('/analytics/item/:itemName', async (req, res) => {
   } catch (error) {
     console.error('Error fetching item details:', error);
     res.status(500).json({ error: 'Failed to fetch item details' });
+  }
+});
+
+// List expiring inventory items across all camps and areas
+router.get('/expiries', async (req, res) => {
+  try {
+    const { q, itemName, campId, areaId, status, dateFrom, dateTo } = req.query;
+
+    const pipeline = [];
+
+    const matchAreaStage = {};
+    if (campId) matchAreaStage.campId = campId;
+    if (areaId) matchAreaStage.id = areaId;
+    if (Object.keys(matchAreaStage).length > 0) {
+      pipeline.push({ $match: matchAreaStage });
+    }
+
+    pipeline.push({ $unwind: '$inventoryItems' });
+    
+    const now = new Date();
+    const matchItemStage = { 'inventoryItems.expiryDate': { $ne: null } };
+    if (itemName) matchItemStage['inventoryItems.name'] = new RegExp(itemName, 'i');
+
+    // Date range filtering
+    if (dateFrom || dateTo) {
+      matchItemStage['inventoryItems.expiryDate'] = matchItemStage['inventoryItems.expiryDate'] || {};
+      if (dateFrom) matchItemStage['inventoryItems.expiryDate'].$gte = new Date(dateFrom);
+      if (dateTo) matchItemStage['inventoryItems.expiryDate'].$lte = new Date(dateTo);
+    }
+
+    // Status filter: expired | active | all
+    if (status === 'expired') {
+      matchItemStage['inventoryItems.expiryDate'] = matchItemStage['inventoryItems.expiryDate'] || {};
+      matchItemStage['inventoryItems.expiryDate'].$lt = now;
+    } else if (status === 'active') {
+      matchItemStage['inventoryItems.expiryDate'] = matchItemStage['inventoryItems.expiryDate'] || {};
+      matchItemStage['inventoryItems.expiryDate'].$gte = now;
+    }
+
+    pipeline.push({ $match: matchItemStage });
+
+    // Lookup camp
+    pipeline.push({
+      $lookup: {
+        from: 'camps',
+        localField: 'campId',
+        foreignField: 'id',
+        as: 'camp'
+      }
+    });
+
+    // General search q
+    if (q) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { 'inventoryItems.name': new RegExp(q, 'i') },
+            { name: new RegExp(q, 'i') },
+            { 'camp.name': new RegExp(q, 'i') }
+          ]
+        }
+      });
+    }
+
+    // Project fields
+    pipeline.push({
+      $project: {
+        itemId: '$inventoryItems.id',
+        itemName: '$inventoryItems.name',
+        quantity: '$inventoryItems.quantity',
+        expiryDate: '$inventoryItems.expiryDate',
+        addedAt: '$inventoryItems.addedAt',
+        campId: '$campId',
+        campName: { $arrayElemAt: ['$camp.name', 0] },
+        areaId: '$id',
+        areaName: '$name',
+        isExpired: { $lt: ['$inventoryItems.expiryDate', now] }
+      }
+    });
+
+    // Sort: expired first, then by soonest expiry
+    pipeline.push({ $sort: { isExpired: -1, expiryDate: 1 } });
+
+    const results = await PolygonArea.aggregate(pipeline);
+    res.json(results);
+  } catch (error) {
+    console.error('Error listing expiries:', error);
+    res.status(500).json({ error: 'Failed to list expiring items' });
   }
 });
 

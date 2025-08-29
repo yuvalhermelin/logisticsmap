@@ -22,6 +22,8 @@ export default function InventoryManagement({
   const [newItemName, setNewItemName] = useState<string>('');
   const [isAddingNew, setIsAddingNew] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [expiryDate, setExpiryDate] = useState<string>('');
+  const [draftExpiryByItem, setDraftExpiryByItem] = useState<Record<string, string>>({});
   
   // File upload states
   const [isUploadingFile, setIsUploadingFile] = useState<boolean>(false);
@@ -47,9 +49,10 @@ export default function InventoryManagement({
 
     setLoading(true);
     try {
-      await api.addInventoryToArea(campId, polygonId, selectedItem, quantity);
+      await api.addInventoryToArea(campId, polygonId, selectedItem, quantity, expiryDate || undefined);
       setSelectedItem('');
       setQuantity(1);
+      setExpiryDate('');
       onInventoryUpdated();
     } catch (error) {
       console.error('Failed to add inventory item:', error);
@@ -90,6 +93,32 @@ export default function InventoryManagement({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUpdateExpiry = async (itemId: string, newExpiry: string) => {
+    setLoading(true);
+    try {
+      await api.updateInventoryInArea(campId, polygonId, itemId, (currentInventory.find(i => i.id === itemId)?.quantity || 0), newExpiry || null);
+      onInventoryUpdated();
+    } catch (error) {
+      console.error('Failed to update inventory expiry:', error);
+      alert('נכשל בעדכון תאריך התפוגה. אנא נסה שוב.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const normalizedDate = (iso?: string | null) => iso ? new Date(iso).toISOString().substring(0,10) : '';
+  const saveExpiryIfChanged = async (itemId: string) => {
+    const draft = draftExpiryByItem[itemId];
+    const original = normalizedDate(currentInventory.find(i => i.id === itemId)?.expiryDate || null);
+    if (draft !== undefined && draft !== original) {
+      await handleUpdateExpiry(itemId, draft);
+    }
+    setDraftExpiryByItem(prev => {
+      const { [itemId]: _, ...rest } = prev;
+      return rest;
+    });
   };
 
   const handleRemoveItem = async (itemId: string) => {
@@ -173,7 +202,12 @@ export default function InventoryManagement({
           <h5 className="text-sm font-medium text-gray-600">פריטים נוכחיים:</h5>
           {currentInventory.map((item) => (
             <div key={item.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-              <span className="text-sm">{item.name}</span>
+              <div className="flex-1">
+                <div className="text-sm">{item.name}</div>
+                <div className="text-xs text-gray-500">
+                  {item.expiryDate ? `תפוגה: ${new Date(item.expiryDate).toLocaleDateString('he-IL')}` : 'ללא תאריך תפוגה'}
+                </div>
+              </div>
               <div className="flex items-center space-x-2">
                 <input
                   type="number"
@@ -181,6 +215,25 @@ export default function InventoryManagement({
                   value={item.quantity}
                   onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 0)}
                   className="w-16 px-2 py-1 text-xs border border-gray-300 rounded"
+                  disabled={loading}
+                />
+                <input
+                  type="date"
+                  value={draftExpiryByItem[item.id] ?? normalizedDate(item.expiryDate || null)}
+                  onChange={(e) => setDraftExpiryByItem(prev => ({ ...prev, [item.id]: e.target.value }))}
+                  onBlur={() => saveExpiryIfChanged(item.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    } else if (e.key === 'Escape') {
+                      setDraftExpiryByItem(prev => {
+                        const { [item.id]: _, ...rest } = prev;
+                        return rest;
+                      });
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  className="px-2 py-1 text-xs border border-gray-300 rounded"
                   disabled={loading}
                 />
                 <button
@@ -224,6 +277,14 @@ export default function InventoryManagement({
                 onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
                 className="w-16 px-2 py-1 text-xs border border-gray-300 rounded"
                 placeholder="כמות"
+                disabled={loading}
+              />
+              <input
+                type="date"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+                className="px-2 py-1 text-xs border border-gray-300 rounded"
+                placeholder="תאריך תפוגה (אופציונלי)"
                 disabled={loading}
               />
               <button
