@@ -35,7 +35,8 @@ export default function Tracking() {
     dateFrom: string;
     dateTo: string;
     typeId: string;
-  }>({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '', typeId: '' });
+    statusId?: string;
+  }>({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '', typeId: '', statusId: '' });
   const [draftExpiryByKey, setDraftExpiryByKey] = useState<Record<string, string>>({});
   const [areaTypes, setAreaTypes] = useState<{ id: string; name: string }[]>([]);
   const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
@@ -76,7 +77,7 @@ export default function Tracking() {
         dateFrom: filters.dateFrom || undefined,
         dateTo: filters.dateTo || undefined,
         typeId: filters.typeId || undefined,
-        statusId: undefined, // placeholder until UI added
+        statusId: filters.statusId || undefined,
       });
       setExpiries(data);
       setError(null);
@@ -226,8 +227,8 @@ export default function Tracking() {
           <div>
             <label className="block text-xs text-gray-600 mb-1">סטטוס אזור</label>
             <select
-              value={''}
-              onChange={(e) => setFilters(prev => ({ ...prev, /* add to api call when needed */ }))}
+              value={filters.statusId || ''}
+              onChange={(e) => setFilters(prev => ({ ...prev, statusId: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded"
             >
               <option value="">הכל</option>
@@ -257,7 +258,7 @@ export default function Tracking() {
         </div>
         <div className="flex justify-end mt-3 space-x-2">
           <button
-            onClick={() => setFilters({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '', typeId: '' })}
+            onClick={() => setFilters({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '', typeId: '', statusId: '' })}
             className="px-4 py-2 border border-gray-300 rounded"
           >
             נקה

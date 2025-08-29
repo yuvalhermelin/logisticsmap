@@ -3,7 +3,7 @@ import type { LatLngExpression, LatLngBounds } from 'leaflet';
 import { useEffect, useState, useRef } from 'react';
 import { EditControl } from 'react-leaflet-draw';
 import Swal from 'sweetalert2';
-import { api, typesApi, type Camp, type PolygonArea } from '../services/api';
+import { api, typesApi, statusesApi, type Camp, type PolygonArea } from '../services/api';
 import InventoryManagement from './InventoryManagement';
 
 // Function to fix default markers and load CSS - only runs in browser
@@ -95,9 +95,13 @@ interface EditablePolygonProps {
   labelZoomThreshold: number;
   labelEnabled: boolean;
   areaTypes: { id: string; name: string }[];
+  areaStatuses: { id: string; name: string }[];
+  onTypeCreated: (created: { id: string; name: string }) => void;
+  onStatusCreated: (created: { id: string; name: string }) => void;
+  isArchiveMode: boolean;
 }
 
-function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, campId, onInventoryUpdated, currentZoom, labelZoomThreshold, labelEnabled, areaTypes }: EditablePolygonProps) {
+function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, campId, onInventoryUpdated, currentZoom, labelZoomThreshold, labelEnabled, areaTypes, areaStatuses, onTypeCreated, onStatusCreated, isArchiveMode }: EditablePolygonProps) {
   return (
     <Polygon
       positions={polygon.positions}
@@ -122,6 +126,9 @@ function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, cam
             {polygon.typeName && (
               <div className="text-xs text-gray-600 mt-1">סוג: {polygon.typeName}</div>
             )}
+            {polygon.statusName && (
+              <div className="text-xs text-gray-600 mt-1">סטטוס: {polygon.statusName}</div>
+            )}
           </div>
 
           {/* Inventory Section */}
@@ -135,101 +142,110 @@ function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, cam
           />
           </div>
 
-          {isEditing && (
+          {
             <div className="mt-3 pt-3 border-t space-y-2">
-              <div className="text-xs text-gray-600 mt-2">
-                השתמש בכלי העריכה בסרגל הכלים כדי לשנות את הפוליגון הזה
-              </div>
-              {/* Type selector */}
-              <div className="flex items-center space-x-2">
-                <select
-                  value={polygon.typeId || ''}
-                  onChange={async (e) => {
-                    const selectedId = e.target.value;
-                    let typeId = selectedId || null;
-                    let typeName = null as string | null;
-                    if (selectedId === '__new') {
-                      const { value: newTypeName } = await Swal.fire({
-                        title: 'סוג אזור חדש',
-                        input: 'text',
-                        inputPlaceholder: 'שם סוג...',
-                        showCancelButton: true,
-                        confirmButtonText: 'צור',
-                        cancelButtonText: 'ביטול'
-                      });
-                      if (newTypeName && newTypeName.trim()) {
-                        const created = await typesApi.createAreaType(newTypeName.trim());
-                        typeId = created.id;
-                        typeName = created.name;
-                      } else {
-                        return;
-                      }
-                    } else if (selectedId) {
-                      const picked = areaTypes.find((t) => t.id === selectedId);
-                      typeName = picked ? picked.name : null;
-                    }
-                    const updated: PolygonArea = { ...polygon, typeId, typeName };
-                    onUpdate(updated);
-                  }}
-                  className="px-2 py-1 text-xs border border-gray-300 rounded"
-                >
-                  <option value="">בחר סוג אזור...</option>
-                  {areaTypes.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                  <option value="__new">+ הוסף סוג חדש</option>
-                </select>
-              </div>
-              {/* Status selector */}
-              <div className="flex items-center space-x-2">
-                <select
-                  value={polygon.statusId || ''}
-                  onChange={async (e) => {
-                    const selectedId = e.target.value;
-                    let statusId = selectedId || null;
-                    let statusName = null as string | null;
-                    const { statusesApi } = await import('../services/api');
-                    if (selectedId === '__new') {
-                      const { value: newStatusName } = await Swal.fire({
-                        title: 'סטטוס אזור חדש',
-                        input: 'text',
-                        inputPlaceholder: 'שם סטטוס...',
-                        showCancelButton: true,
-                        confirmButtonText: 'צור',
-                        cancelButtonText: 'ביטול'
-                      });
-                      if (newStatusName && newStatusName.trim()) {
-                        const created = await statusesApi.createAreaStatus(newStatusName.trim());
-                        statusId = created.id;
-                        statusName = created.name;
-                      } else {
-                        return;
-                      }
-                    } else if (selectedId) {
-                      const list = await statusesApi.getAreaStatuses();
-                      const picked = list.find((s) => s.id === selectedId);
-                      statusName = picked ? picked.name : null;
-                    }
-                    const updated: PolygonArea = { ...polygon, statusId, statusName };
-                    onUpdate(updated);
-                  }}
-                  className="px-2 py-1 text-xs border border-gray-300 rounded"
-                >
-                  <option value="">בחר סטטוס אזור...</option>
-                  {/* We'll fetch statuses at interaction to keep bundle small */}
-                  {/* Render dynamic list by fetching now */}
-                  {null}
-                  <option value="__new">+ הוסף סטטוס חדש</option>
-                </select>
-              </div>
-              <button
-                onClick={onDelete}
-                className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 w-full"
-              >
-                מחק אזור
-              </button>
+              {isArchiveMode ? (
+                <div className="text-xs text-gray-700 space-y-1">
+                  <div>סוג: {polygon.typeName || '—'}</div>
+                  <div>סטטוס: {polygon.statusName || '—'}</div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-xs text-gray-600 mt-2">
+                    השתמש בכלי העריכה בסרגל הכלים כדי לשנות את הפוליגון הזה
+                  </div>
+                  {/* Type selector */}
+                  <div className="flex items-center space-x-2">
+                    <select
+                      value={polygon.typeId || ''}
+                      onChange={async (e) => {
+                        const selectedId = e.target.value;
+                        let typeId = selectedId || null;
+                        let typeName = null as string | null;
+                        if (selectedId === '__new') {
+                          const { value: newTypeName } = await Swal.fire({
+                            title: 'סוג אזור חדש',
+                            input: 'text',
+                            inputPlaceholder: 'שם סוג...',
+                            showCancelButton: true,
+                            confirmButtonText: 'צור',
+                            cancelButtonText: 'ביטול'
+                          });
+                          if (newTypeName && newTypeName.trim()) {
+                            const created = await typesApi.createAreaType(newTypeName.trim());
+                            try { onTypeCreated(created); } catch {}
+                            typeId = created.id;
+                            typeName = created.name;
+                          } else {
+                            return;
+                          }
+                        } else if (selectedId) {
+                          const picked = areaTypes.find((t) => t.id === selectedId);
+                          typeName = picked ? picked.name : null;
+                        }
+                        const updated: PolygonArea = { ...polygon, typeId, typeName };
+                        onUpdate(updated);
+                      }}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded"
+                    >
+                      <option value="">בחר סוג אזור...</option>
+                      {areaTypes.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                      <option value="__new">+ הוסף סוג חדש</option>
+                    </select>
+                  </div>
+                  {/* Status selector */}
+                  <div className="flex items-center space-x-2">
+                    <select
+                      value={polygon.statusId || ''}
+                      onChange={async (e) => {
+                        const selectedId = e.target.value;
+                        let statusId = selectedId || null;
+                        let statusName = null as string | null;
+                        if (selectedId === '__new') {
+                          const { value: newStatusName } = await Swal.fire({
+                            title: 'סטטוס אזור חדש',
+                            input: 'text',
+                            inputPlaceholder: 'שם סטטוס...',
+                            showCancelButton: true,
+                            confirmButtonText: 'צור',
+                            cancelButtonText: 'ביטול'
+                          });
+                          if (newStatusName && newStatusName.trim()) {
+                            const created = await statusesApi.createAreaStatus(newStatusName.trim());
+                            try { onStatusCreated(created); } catch {}
+                            statusId = created.id;
+                            statusName = created.name;
+                          } else {
+                            return;
+                          }
+                        } else if (selectedId) {
+                          const picked = areaStatuses.find((s) => s.id === selectedId);
+                          statusName = picked ? picked.name : null;
+                        }
+                        const updated: PolygonArea = { ...polygon, statusId, statusName };
+                        onUpdate(updated);
+                      }}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded"
+                    >
+                      <option value="">בחר סטטוס אזור...</option>
+                      {areaStatuses.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                      <option value="__new">+ הוסף סטטוס חדש</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={onDelete}
+                    className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 w-full"
+                  >
+                    מחק אזור
+                  </button>
+                </>
+              )}
             </div>
-          )}
+          }
         </div>
       </Popup>
     </Polygon>
@@ -608,6 +624,8 @@ export default function Map({
   const [editingCampId, setEditingCampId] = useState<string | null>(null);
   const [areaTypes, setAreaTypes] = useState<{ id: string; name: string }[]>([]);
   const [labelsEnabled, setLabelsEnabled] = useState<boolean>(true);
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
   const featureGroupRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
   const [currentZoom, setCurrentZoom] = useState<number>(zoom);
@@ -616,6 +634,7 @@ export default function Map({
   const layerToPolygonRef = useRef<{[key: string]: {campId: string, polygonId: string}}>({});
   const layerToCampRef = useRef<{[key: string]: string}>({});
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [areaStatuses, setAreaStatuses] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     if (mapRef.current) {
@@ -679,12 +698,14 @@ export default function Map({
       try {
         setIsLoading(true);
         setError(null);
-        const [loadedCamps, loadedTypes] = await Promise.all([
+        const [loadedCamps, loadedTypes, loadedStatuses] = await Promise.all([
           isArchiveMode ? api.getCamps('only') : api.getCamps(false),
-          typesApi.getAreaTypes()
+          typesApi.getAreaTypes(),
+          statusesApi.getAreaStatuses()
         ]);
         setCamps(loadedCamps);
         setAreaTypes(loadedTypes);
+        setAreaStatuses(loadedStatuses);
       } catch (err) {
         console.error('Failed to load camps:', err);
         setError('נכשל בטעינת המחנות ממסד הנתונים');
@@ -1518,13 +1539,41 @@ export default function Map({
             />
           )}
 
-          {/* Labels and Archive toggle control */}
+          {/* Labels, Filters, and Archive toggle controls */}
           <div className="leaflet-top leaflet-right" style={{ pointerEvents: 'auto', marginTop: '80px', marginRight: '10px' }}>
             <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl', marginBottom: '8px' }}>
               <label className="flex items-center space-x-2" style={{ gap: '8px' }}>
                 <input type="checkbox" checked={labelsEnabled} onChange={(e) => setLabelsEnabled(e.target.checked)} />
                 <span className="text-xs">הצג תוויות</span>
               </label>
+            </div>
+            <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl', marginBottom: '8px', minWidth: '220px' }}>
+              <div className="mb-2">
+                <label className="block text-[10px] text-gray-600 mb-1">סינון לפי סוג אזור</label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                >
+                  <option value="">הכל</option>
+                  {areaTypes.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-600 mb-1">סינון לפי סטטוס אזור</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                >
+                  <option value="">הכל</option>
+                  {areaStatuses.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl' }}>
               <button
@@ -1641,11 +1690,13 @@ export default function Map({
               </Polygon>
 
               {/* Enhanced polygon areas within the camp */}
-              {camp.polygonAreas.map((polygon) => (
+              {camp.polygonAreas
+                .filter((polygon) => (!typeFilter || (polygon.typeId || '') === typeFilter) && (!statusFilter || (polygon.statusId || '') === statusFilter))
+                .map((polygon) => (
                 <EditablePolygon
                   key={polygon.id}
                   polygon={polygon}
-                  isEditing={!isArchiveMode && isEditMode && editingPolygonId === polygon.id}
+                  isEditing={true}
                   onUpdate={(updatedPolygon) => { if (!isArchiveMode) updatePolygonArea(camp.id, updatedPolygon); }}
                   onDelete={() => { if (!isArchiveMode) deletePolygonArea(camp.id, polygon.id); }}
                   campName={camp.name}
@@ -1659,6 +1710,10 @@ export default function Map({
                   labelZoomThreshold={LABEL_ZOOM_THRESHOLD}
                   labelEnabled={labelsEnabled}
                   areaTypes={areaTypes}
+                  areaStatuses={areaStatuses}
+                  onTypeCreated={(created) => setAreaTypes((prev: { id: string; name: string }[]) => [...prev, created])}
+                  onStatusCreated={(created) => setAreaStatuses((prev: { id: string; name: string }[]) => [...prev, created])}
+                  isArchiveMode={isArchiveMode}
                 />
               ))}
             </div>
