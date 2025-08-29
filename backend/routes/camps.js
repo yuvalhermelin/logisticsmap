@@ -1,13 +1,21 @@
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
+const path = require('path');
 const Camp = require('../models/Camp');
 const PolygonArea = require('../models/PolygonArea');
 const AreaType = require('../models/AreaType');
 
-// Get all camps
+// Get camps (defaults to non-archived). Query: archived=true|false|all
 router.get('/', async (req, res) => {
   try {
-    const camps = await Camp.find().sort({ createdAt: -1 });
+    const { archived } = req.query;
+    let campFilter = {};
+    if (archived === 'true') campFilter = { archived: true };
+    else if (archived === 'all') campFilter = {};
+    else campFilter = { archived: { $ne: true } };
+
+    const camps = await Camp.find(campFilter).sort({ createdAt: -1 });
     
     // For each camp, fetch its polygon areas
     const campsWithPolygons = await Promise.all(
@@ -35,7 +43,8 @@ router.post('/', async (req, res) => {
     const camp = new Camp({
       id,
       name,
-      positions
+      positions,
+      archived: false
     });
     
     const savedCamp = await camp.save();
@@ -55,7 +64,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Update a camp
+// Update a camp (blocked for archived camps)
 router.put('/:campId', async (req, res) => {
   try {
     const { campId } = req.params;
@@ -64,6 +73,14 @@ router.put('/:campId', async (req, res) => {
     // Remove polygonAreas from update data as it's now a separate collection
     delete updateData.polygonAreas;
     
+    const existing = await Camp.findOne({ id: campId });
+    if (!existing) {
+      return res.status(404).json({ error: 'Camp not found' });
+    }
+    if (existing.archived) {
+      return res.status(400).json({ error: 'Cannot update an archived camp' });
+    }
+
     const camp = await Camp.findOneAndUpdate(
       { id: campId },
       updateData,
@@ -87,24 +104,93 @@ router.put('/:campId', async (req, res) => {
   }
 });
 
-// Delete a camp
+// Archive a camp (legacy delete now archives)
 router.delete('/:campId', async (req, res) => {
   try {
     const { campId } = req.params;
     
-    const camp = await Camp.findOneAndDelete({ id: campId });
+    const camp = await Camp.findOne({ id: campId });
     
     if (!camp) {
       return res.status(404).json({ error: 'Camp not found' });
     }
+    if (camp.archived) {
+      return res.status(400).json({ error: 'Camp already archived. Use permanent delete to remove.' });
+    }
+
+    camp.archived = true;
+    await camp.save();
+
+    const polygonAreas = await PolygonArea.find({ campId: campId });
     
-    // Also delete all polygon areas associated with this camp
-    await PolygonArea.deleteMany({ campId: campId });
-    
-    res.json({ message: 'Camp deleted successfully' });
+    res.json({
+      ...camp.toObject(),
+      polygonAreas
+    });
   } catch (error) {
     console.error('Error deleting camp:', error);
-    res.status(500).json({ error: 'Failed to delete camp' });
+    res.status(500).json({ error: 'Failed to archive camp' });
+  }
+});
+
+// Explicitly archive a camp
+router.post('/:campId/archive', async (req, res) => {
+  try {
+    const { campId } = req.params;
+    const camp = await Camp.findOne({ id: campId });
+    if (!camp) return res.status(404).json({ error: 'Camp not found' });
+    if (camp.archived) return res.status(400).json({ error: 'Camp already archived' });
+    camp.archived = true;
+    await camp.save();
+    const polygonAreas = await PolygonArea.find({ campId: campId });
+    res.json({ ...camp.toObject(), polygonAreas });
+  } catch (error) {
+    console.error('Error archiving camp:', error);
+    res.status(500).json({ error: 'Failed to archive camp' });
+  }
+});
+
+// Unarchive a camp
+router.post('/:campId/unarchive', async (req, res) => {
+  try {
+    const { campId } = req.params;
+    const camp = await Camp.findOne({ id: campId });
+    if (!camp) return res.status(404).json({ error: 'Camp not found' });
+    if (!camp.archived) return res.status(400).json({ error: 'Camp is not archived' });
+    camp.archived = false;
+    await camp.save();
+    const polygonAreas = await PolygonArea.find({ campId: campId });
+    res.json({ ...camp.toObject(), polygonAreas });
+  } catch (error) {
+    console.error('Error unarchiving camp:', error);
+    res.status(500).json({ error: 'Failed to unarchive camp' });
+  }
+});
+
+// Permanently delete a camp and its polygon areas and files
+router.delete('/:campId/permanent', async (req, res) => {
+  try {
+    const { campId } = req.params;
+    const camp = await Camp.findOneAndDelete({ id: campId });
+    if (!camp) return res.status(404).json({ error: 'Camp not found' });
+
+    // Delete all polygon areas and their files from disk
+    const areas = await PolygonArea.find({ campId });
+    const uploadsDir = path.join(__dirname, '../uploads');
+    areas.forEach(area => {
+      (area.files || []).forEach(file => {
+        const filePath = path.join(uploadsDir, file.fileName);
+        if (fs.existsSync(filePath)) {
+          try { fs.unlinkSync(filePath); } catch (e) { console.warn('Failed to remove file', filePath, e); }
+        }
+      });
+    });
+    await PolygonArea.deleteMany({ campId });
+
+    res.json({ message: 'Camp permanently deleted' });
+  } catch (error) {
+    console.error('Error permanently deleting camp:', error);
+    res.status(500).json({ error: 'Failed to permanently delete camp' });
   }
 });
 
@@ -118,6 +204,10 @@ router.post('/:campId/polygons', async (req, res) => {
     
     if (!camp) {
       return res.status(404).json({ error: 'Camp not found' });
+    }
+    
+    if (camp.archived) {
+      return res.status(400).json({ error: 'Cannot add polygon to an archived camp' });
     }
     
     // Resolve type if provided (typeId or typeName)
@@ -176,6 +266,10 @@ router.put('/:campId/polygons/:polygonId', async (req, res) => {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
+    if (camp.archived) {
+      return res.status(400).json({ error: 'Cannot update polygon in an archived camp' });
+    }
+    
     // Resolve type if provided and normalize stored fields
     const updateDoc = { ...polygonData };
     if (polygonData.typeId || polygonData.typeName) {
@@ -231,6 +325,10 @@ router.delete('/:campId/polygons/:polygonId', async (req, res) => {
     
     if (!camp) {
       return res.status(404).json({ error: 'Camp not found' });
+    }
+    
+    if (camp.archived) {
+      return res.status(400).json({ error: 'Cannot delete polygon from an archived camp' });
     }
     
     const deletedPolygon = await PolygonArea.findOneAndDelete({ 

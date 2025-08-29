@@ -85,3 +85,12 @@ This template comes with [Tailwind CSS](https://tailwindcss.com/) already config
 ---
 
 Built with ❤️ using React Router.
+
+## Archive Mode (Logistics Map)
+
+- Camps can be archived from the main map. Archiving hides the camp and all its areas/items from all pages (map, camps, analytics, tracking).
+- Toggle "Archive Mode" in the map to view archived camps in read-only mode.
+- In Archive Mode, you can:
+  - Unarchive a camp (return it to normal data)
+  - Permanently delete a camp (irreversible; removes camp, areas, items, and uploaded files)
+- Editing (draw, edit, delete areas/camps) is disabled in Archive Mode.

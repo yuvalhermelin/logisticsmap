@@ -560,6 +560,7 @@ export default function Map({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isArchiveMode, setIsArchiveMode] = useState(false);
   const [selectedCampId, setSelectedCampId] = useState<string | null>(null);
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
   const [editingCampId, setEditingCampId] = useState<string | null>(null);
@@ -630,14 +631,14 @@ export default function Map({
     });
   };
 
-  // Load camps from API when component mounts
+  // Load camps from API when component mounts and when archive mode changes
   useEffect(() => {
     const loadCamps = async () => {
       try {
         setIsLoading(true);
         setError(null);
         const [loadedCamps, loadedTypes] = await Promise.all([
-          api.getCamps(),
+          isArchiveMode ? api.getCamps('only') : api.getCamps(false),
           typesApi.getAreaTypes()
         ]);
         setCamps(loadedCamps);
@@ -650,8 +651,13 @@ export default function Map({
       }
     };
 
+    setIsEditMode(false);
+    setSelectedCampId(null);
+    setEditingPolygonId(null);
+    setEditingCampId(null);
+
     loadCamps();
-  }, []);
+  }, [isArchiveMode]);
 
   // Setup Leaflet when component mounts
   useEffect(() => {
@@ -1126,6 +1132,7 @@ export default function Map({
 
   // Toggle edit mode
   const toggleEditMode = () => {
+    if (isArchiveMode) return;
     setIsEditMode(!isEditMode);
     setSelectedCampId(null);
     setEditingPolygonId(null);
@@ -1257,35 +1264,83 @@ export default function Map({
     }
   };
 
-  // Delete a camp with confirmation
+  // Archive a camp with confirmation
   const deleteCamp = async (campId: string) => {
     const camp = camps.find(c => c.id === campId);
     if (!camp) return;
 
     const result = await Swal.fire({
-      title: 'מחק מחנה',
-      text: `האם אתה בטוח שברצונך למחוק את "${camp.name}"? פעולה זו תמחק גם את כל האזורים במחנה ולא ניתנת לביטול.`,
+      title: 'ארכב מחנה',
+      text: `האם אתה בטוח שברצונך לארכב את "${camp.name}"? המחנה והנתונים יוסתרו מכל המסכים ויופיעו רק במצב ארכיון.`,
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#dc2626',
+      confirmButtonColor: '#2563eb',
       cancelButtonColor: '#6b7280',
-      confirmButtonText: 'כן, מחק!',
+      confirmButtonText: 'כן, ארכב!',
       cancelButtonText: 'ביטול'
     });
 
     if (result.isConfirmed) {
       try {
-        await api.deleteCamp(campId);
+        await api.archiveCamp(campId);
         setCamps(prev => prev.filter(c => c.id !== campId));
         
         // Reset selections if this camp was selected
         if (selectedCampId === campId) setSelectedCampId(null);
         if (editingCampId === campId) setEditingCampId(null);
         
-        showNotification('מחנה נמחק בהצלחה!', 'success');
+        showNotification('המחנה הועבר לארכיון בהצלחה!', 'success');
       } catch (err) {
-        console.error('Failed to delete camp:', err);
-        showNotification(`נכשל במחיקת המחנה: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
+        console.error('Failed to archive camp:', err);
+        showNotification(`נכשל בארכוב המחנה: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
+      }
+    }
+  };
+
+  const unarchiveCamp = async (campId: string) => {
+    const camp = camps.find(c => c.id === campId);
+    if (!camp) return;
+    const result = await Swal.fire({
+      title: 'בטל ארכוב',
+      text: `להחזיר את "${camp.name}" למערכת?`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'כן, החזר',
+      cancelButtonText: 'ביטול'
+    });
+    if (result.isConfirmed) {
+      try {
+        await api.unarchiveCamp(campId);
+        setCamps(prev => prev.filter(c => c.id !== campId));
+        showNotification('המחנה הוחזר בהצלחה!', 'success');
+      } catch (e) {
+        showNotification(`נכשל בביטול ארכוב: ${e instanceof Error ? e.message : 'שגיאה לא ידועה'}`, 'error');
+      }
+    }
+  };
+
+  const permanentlyDeleteCamp = async (campId: string) => {
+    const camp = camps.find(c => c.id === campId);
+    if (!camp) return;
+    const result = await Swal.fire({
+      title: 'מחיקה לצמיתות',
+      text: `האם אתה בטוח שברצונך למחוק לצמיתות את "${camp.name}" וכל נתוניו? פעולה זו אינה ניתנת לשחזור.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'מחק לצמיתות',
+      cancelButtonText: 'ביטול'
+    });
+    if (result.isConfirmed) {
+      try {
+        await api.permanentlyDeleteCamp(campId);
+        setCamps(prev => prev.filter(c => c.id !== campId));
+        showNotification('המחנה נמחק לצמיתות.', 'success');
+      } catch (e) {
+        showNotification(`נכשל במחיקה לצמיתות: ${e instanceof Error ? e.message : 'שגיאה לא ידועה'}`, 'error');
       }
     }
   };
@@ -1364,29 +1419,39 @@ export default function Map({
             minZoom={1}
           />
           
-          {/* Custom Edit Control positioned over the map */}
-          <EditModeControl
-            isEditMode={isEditMode}
-            onToggleEditMode={toggleEditMode}
-            selectedCampId={selectedCampId}
-            camps={camps}
-            onSelectCamp={selectCamp}
-            selectedCamp={selectedCamp || null}
-            editingPolygonId={editingPolygonId}
-            onToggleEditPolygon={toggleEditPolygon}
-            onDeletePolygon={deletePolygonArea}
-            editingCampId={editingCampId}
-            onToggleEditCamp={toggleEditCamp}
-            onDeleteCamp={deleteCamp}
-          />
+          {/* Custom Edit Control positioned over the map (hidden in archive mode) */}
+          {!isArchiveMode && (
+            <EditModeControl
+              isEditMode={isEditMode}
+              onToggleEditMode={toggleEditMode}
+              selectedCampId={selectedCampId}
+              camps={camps}
+              onSelectCamp={selectCamp}
+              selectedCamp={selectedCamp || null}
+              editingPolygonId={editingPolygonId}
+              onToggleEditPolygon={toggleEditPolygon}
+              onDeletePolygon={deletePolygonArea}
+              editingCampId={editingCampId}
+              onToggleEditCamp={toggleEditCamp}
+              onDeleteCamp={deleteCamp}
+            />
+          )}
 
-          {/* Labels toggle control */}
+          {/* Labels and Archive toggle control */}
           <div className="leaflet-top leaflet-right" style={{ pointerEvents: 'auto', marginTop: '80px', marginRight: '10px' }}>
-            <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl' }}>
+            <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl', marginBottom: '8px' }}>
               <label className="flex items-center space-x-2" style={{ gap: '8px' }}>
                 <input type="checkbox" checked={labelsEnabled} onChange={(e) => setLabelsEnabled(e.target.checked)} />
                 <span className="text-xs">הצג תוויות</span>
               </label>
+            </div>
+            <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl' }}>
+              <button
+                onClick={() => setIsArchiveMode(v => !v)}
+                className={`px-3 py-1 rounded text-xs ${isArchiveMode ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}`}
+              >
+                {isArchiveMode ? 'מצב ארכיון: פעיל' : 'הפעל מצב ארכיון'}
+              </button>
             </div>
           </div>
           
@@ -1403,7 +1468,7 @@ export default function Map({
               circlemarker: false,
               marker: false,
               polyline: false,
-              polygon: isEditMode ? {
+              polygon: isArchiveMode ? false : (isEditMode ? {
                 allowIntersection: false,
                 drawError: {
                   color: '#e1e100',
@@ -1414,12 +1479,12 @@ export default function Map({
                   weight: 2,
                   fillOpacity: selectedCampId ? 0.3 : 0.2
                 }
-              } : false
+              } : false)
             }}
                           edit={{
               featureGroup: featureGroupRef.current,
-              edit: isEditMode ? {} : false,
-              remove: isEditMode ? {} : false
+              edit: isArchiveMode ? false : (isEditMode ? {} : false),
+              remove: isArchiveMode ? false : (isEditMode ? {} : false)
             }}
             />
           </FeatureGroup>
@@ -1448,7 +1513,7 @@ export default function Map({
                     <strong>מחנה: {camp.name}</strong>
                     <br />
                     <em>אזורי פוליגון: {camp.polygonAreas.length}</em>
-                    {isEditMode && (
+                    {!isArchiveMode && isEditMode && (
                       <div className="mt-2 space-y-2">
                         <button
                           onClick={() => selectCamp(camp.id)}
@@ -1468,9 +1533,25 @@ export default function Map({
                         </button>
                         <button
                           onClick={() => deleteCamp(camp.id)}
-                          className="bg-red-500 text-white px-2 py-1 rounded text-sm hover:bg-red-600 w-full"
+                          className="bg-indigo-600 text-white px-2 py-1 rounded text-sm hover:bg-indigo-700 w-full"
                         >
-                          מחק מחנה
+                          ארכב מחנה
+                        </button>
+                      </div>
+                    )}
+                    {isArchiveMode && (
+                      <div className="mt-2 space-y-2">
+                        <button
+                          onClick={() => unarchiveCamp(camp.id)}
+                          className="bg-green-600 text-white px-2 py-1 rounded text-sm hover:bg-green-700 w-full"
+                        >
+                          בטל ארכוב
+                        </button>
+                        <button
+                          onClick={() => permanentlyDeleteCamp(camp.id)}
+                          className="bg-red-600 text-white px-2 py-1 rounded text-sm hover:bg-red-700 w-full"
+                        >
+                          מחק לצמיתות
                         </button>
                       </div>
                     )}
@@ -1483,14 +1564,15 @@ export default function Map({
                 <EditablePolygon
                   key={polygon.id}
                   polygon={polygon}
-                  isEditing={isEditMode && editingPolygonId === polygon.id}
-                  onUpdate={(updatedPolygon) => updatePolygonArea(camp.id, updatedPolygon)}
-                  onDelete={() => deletePolygonArea(camp.id, polygon.id)}
+                  isEditing={!isArchiveMode && isEditMode && editingPolygonId === polygon.id}
+                  onUpdate={(updatedPolygon) => { if (!isArchiveMode) updatePolygonArea(camp.id, updatedPolygon); }}
+                  onDelete={() => { if (!isArchiveMode) deletePolygonArea(camp.id, polygon.id); }}
                   campName={camp.name}
                   campId={camp.id}
                   onInventoryUpdated={() => {
-                    // Reload camps to get updated inventory data
-                    api.getCamps().then(setCamps).catch(console.error);
+                    if (!isArchiveMode) {
+                      api.getCamps().then(setCamps).catch(console.error);
+                    }
                   }}
                   currentZoom={currentZoom}
                   labelZoomThreshold={LABEL_ZOOM_THRESHOLD}

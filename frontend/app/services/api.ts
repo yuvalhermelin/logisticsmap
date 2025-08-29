@@ -43,6 +43,7 @@ export interface CampDB {
   _id?: string;
   id: string;
   name: string;
+  archived?: boolean;
   positions: { lat: number; lng: number }[];
   polygonAreas: PolygonAreaDB[];
   createdAt?: string;
@@ -63,6 +64,7 @@ export interface PolygonArea {
 export interface Camp {
   id: string;
   name: string;
+  archived?: boolean;
   positions: LatLngExpression[];
   polygonAreas: PolygonArea[];
 }
@@ -72,6 +74,7 @@ const convertCampFromDB = (campDB: CampDB): Camp => {
   return {
     id: campDB.id,
     name: campDB.name,
+    archived: campDB.archived ?? false,
     positions: campDB.positions.map(pos => [pos.lat, pos.lng] as LatLngExpression),
     polygonAreas: campDB.polygonAreas.map(polygon => ({
       id: polygon.id,
@@ -104,9 +107,13 @@ const convertPolygonToDBFormat = (polygon: PolygonArea) => {
 // API functions
 export const api = {
   // Get all camps
-  async getCamps(): Promise<Camp[]> {
+  async getCamps(includeArchived: false | 'only' | 'all' = false): Promise<Camp[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/camps`);
+      const params = new URLSearchParams();
+      if (includeArchived === 'only') params.append('archived', 'true');
+      else if (includeArchived === 'all') params.append('archived', 'all');
+      const qs = params.toString();
+      const response = await fetch(`${API_BASE_URL}/camps${qs ? `?${qs}` : ''}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch camps: ${response.statusText}`);
       }
@@ -202,6 +209,37 @@ export const api = {
     } catch (error) {
       console.error('Error deleting camp:', error);
       throw error;
+    }
+  },
+
+  // Archive a camp explicitly
+  async archiveCamp(campId: string): Promise<Camp> {
+    const response = await fetch(`${API_BASE_URL}/camps/${campId}/archive`, { method: 'POST' });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to archive camp: ${response.statusText}`);
+    }
+    const camp: CampDB = await response.json();
+    return convertCampFromDB(camp);
+  },
+
+  // Unarchive a camp
+  async unarchiveCamp(campId: string): Promise<Camp> {
+    const response = await fetch(`${API_BASE_URL}/camps/${campId}/unarchive`, { method: 'POST' });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to unarchive camp: ${response.statusText}`);
+    }
+    const camp: CampDB = await response.json();
+    return convertCampFromDB(camp);
+  },
+
+  // Permanently delete a camp
+  async permanentlyDeleteCamp(campId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/camps/${campId}/permanent`, { method: 'DELETE' });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to permanently delete camp: ${response.statusText}`);
     }
   },
 

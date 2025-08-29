@@ -11,6 +11,12 @@ const campSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  archived: {
+    type: Boolean,
+    required: false,
+    default: false,
+    index: true
+  },
   positions: [{
     lat: { type: Number, required: true },
     lng: { type: Number, required: true }

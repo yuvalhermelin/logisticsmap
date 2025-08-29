@@ -62,6 +62,9 @@ router.post('/:campId/polygons/:polygonId/items', async (req, res) => {
     if (!camp) {
       return res.status(404).json({ error: 'Camp not found' });
     }
+    if (camp.archived) {
+      return res.status(400).json({ error: 'Cannot add inventory to an archived camp' });
+    }
     
     const polygonArea = await PolygonArea.findOne({ id: polygonId, campId: campId });
     if (!polygonArea) {
@@ -104,6 +107,9 @@ router.put('/:campId/polygons/:polygonId/items/:itemId', async (req, res) => {
     if (!camp) {
       return res.status(404).json({ error: 'Camp not found' });
     }
+    if (camp.archived) {
+      return res.status(400).json({ error: 'Cannot update inventory in an archived camp' });
+    }
     
     const polygonArea = await PolygonArea.findOne({ id: polygonId, campId: campId });
     if (!polygonArea) {
@@ -145,6 +151,9 @@ router.delete('/:campId/polygons/:polygonId/items/:itemId', async (req, res) => 
     if (!camp) {
       return res.status(404).json({ error: 'Camp not found' });
     }
+    if (camp.archived) {
+      return res.status(400).json({ error: 'Cannot remove inventory from an archived camp' });
+    }
     
     const polygonArea = await PolygonArea.findOne({ id: polygonId, campId: campId });
     if (!polygonArea) {
@@ -169,8 +178,8 @@ router.delete('/:campId/polygons/:polygonId/items/:itemId', async (req, res) => 
 // BI Analytics endpoints
 router.get('/analytics/overview', async (req, res) => {
   try {
-    const camps = await Camp.find();
-    const polygonAreas = await PolygonArea.find();
+    const camps = await Camp.find({ archived: { $ne: true } });
+    const polygonAreas = await PolygonArea.find({ campId: { $in: camps.map(c => c.id) } });
     
     // Calculate analytics
     const analytics = {
@@ -273,9 +282,7 @@ router.get('/analytics/search', async (req, res) => {
       Object.assign(matchStage, itemMatch);
     }
     
-    if (Object.keys(matchStage).length > 0) {
-      pipeline.push({ $match: matchStage });
-    }
+    // Exclude archived camps via lookup+match at the end of camp lookup
     
     // Lookup camp information
     pipeline.push({
@@ -286,6 +293,8 @@ router.get('/analytics/search', async (req, res) => {
         as: 'camp'
       }
     });
+    // Filter out archived camps
+    pipeline.push({ $match: { 'camp.archived': { $ne: true } } });
     
     // Unwind inventory items
     pipeline.push({ $unwind: '$inventoryItems' });
@@ -351,8 +360,8 @@ router.get('/analytics/search', async (req, res) => {
 router.get('/analytics/item/:itemName', async (req, res) => {
   try {
     const { itemName } = req.params;
-    const camps = await Camp.find();
-    const polygonAreas = await PolygonArea.find();
+    const camps = await Camp.find({ archived: { $ne: true } });
+    const polygonAreas = await PolygonArea.find({ campId: { $in: camps.map(c => c.id) } });
     
     const itemDetails = {
       itemName: decodeURIComponent(itemName),
@@ -433,9 +442,7 @@ router.get('/expiries', async (req, res) => {
     if (campId) matchAreaStage.campId = campId;
     if (areaId) matchAreaStage.id = areaId;
     if (typeId) matchAreaStage.typeId = typeId;
-    if (Object.keys(matchAreaStage).length > 0) {
-      pipeline.push({ $match: matchAreaStage });
-    }
+    // Exclude archived via lookup below
 
     pipeline.push({ $unwind: '$inventoryItems' });
     
@@ -470,6 +477,8 @@ router.get('/expiries', async (req, res) => {
         as: 'camp'
       }
     });
+    // Filter out archived camps
+    pipeline.push({ $match: { 'camp.archived': { $ne: true } } });
 
     // General search q
     if (q) {

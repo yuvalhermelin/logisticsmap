@@ -25,7 +25,7 @@ export default function Camps() {
     const fetchCamps = async () => {
       try {
         setLoading(true);
-        const [data, typeList] = await Promise.all([api.getCamps(), typesApi.getAreaTypes()]);
+        const [data, typeList] = await Promise.all([api.getCamps(false), typesApi.getAreaTypes()]);
         setCamps(data);
         setTypes(typeList);
         setError(null);

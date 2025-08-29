@@ -36,6 +36,15 @@ mongoose.connect(MONGODB_URI, {
 })
 .then(() => {
   console.log('Connected to MongoDB');
+  // One-time migration: ensure archived defaults to false where missing
+  const Camp = require('./models/Camp');
+  Camp.updateMany({ archived: { $exists: false } }, { $set: { archived: false } })
+    .then((result) => {
+      if (result && result.modifiedCount) {
+        console.log(`Migration: set archived=false on ${result.modifiedCount} camps`);
+      }
+    })
+    .catch((e) => console.warn('Migration error (archived default):', e));
   app.listen(PORT, () => {
     console.log(`Backend server running on port ${PORT}`);
   });

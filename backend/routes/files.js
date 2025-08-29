@@ -57,6 +57,11 @@ router.post('/:campId/polygons/:polygonId/upload', upload.single('file'), async 
       fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: 'Camp not found' });
     }
+    if (camp.archived) {
+      // Clean up uploaded file if camp is archived
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'Cannot upload files to an archived camp' });
+    }
     
     const polygonArea = await PolygonArea.findOne({ id: polygonId, campId: campId });
     if (!polygonArea) {
@@ -145,6 +150,9 @@ router.delete('/:campId/polygons/:polygonId/files/:fileId', async (req, res) => 
     const camp = await Camp.findOne({ id: campId });
     if (!camp) {
       return res.status(404).json({ error: 'Camp not found' });
+    }
+    if (camp.archived) {
+      return res.status(400).json({ error: 'Cannot delete files from an archived camp' });
     }
     
     // Find polygon and file
