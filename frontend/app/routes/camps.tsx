@@ -124,10 +124,10 @@ export default function Camps() {
         </div>
       </div>
 
-      {camps.length === 0 ? (
+      {camps.filter(c => c.polygonAreas.some(a => (!typeFilter || a.typeId === typeFilter) && (!statusFilter || a.statusId === statusFilter))).length === 0 ? (
         <div className="bg-gray-50 border border-gray-200 rounded-md p-8 text-center">
           <h2 className="text-xl font-medium text-gray-700 mb-2">לא נמצאו מחנות</h2>
-          <p className="text-gray-500">עדיין לא נוצרו מחנות.</p>
+          <p className="text-gray-500">אין מחנות עם אזורים התואמים למסננים.</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -149,7 +149,9 @@ export default function Camps() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {camps.map((camp) => (
+              {camps
+                .filter(c => c.polygonAreas.some(a => (!typeFilter || a.typeId === typeFilter) && (!statusFilter || a.statusId === statusFilter)))
+                .map((camp) => (
                 <>
                   <tr key={camp.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">

@@ -8,6 +8,7 @@ export default function Navigation() {
     { path: "/camps", label: "מחנות", icon: "🏕️" },
     { path: "/inventory-analytics", label: "אנליטיקה", icon: "📊" },
     { path: "/tracking", label: "מעקב והתראות", icon: "🔔" },
+    { path: "/areas", label: "אזורים", icon: "📐" },
   ];
 
   return (
