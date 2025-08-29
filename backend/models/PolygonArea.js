@@ -75,6 +75,17 @@ const polygonAreaSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  typeId: {
+    type: String,
+    required: false,
+    default: null,
+    index: true
+  },
+  typeName: {
+    type: String,
+    required: false,
+    default: null
+  },
   campId: {
     type: String,
     required: true,

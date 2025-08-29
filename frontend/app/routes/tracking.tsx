@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type Camp } from "../services/api";
+import { api, typesApi, type Camp } from "../services/api";
 
 export function meta() {
   return [
@@ -34,19 +34,23 @@ export default function Tracking() {
     status: 'expired' | 'active' | 'all';
     dateFrom: string;
     dateTo: string;
-  }>({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '' });
+    typeId: string;
+  }>({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '', typeId: '' });
   const [draftExpiryByKey, setDraftExpiryByKey] = useState<Record<string, string>>({});
+  const [areaTypes, setAreaTypes] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     const init = async () => {
       try {
         setLoading(true);
-        const [campsData, expiriesData] = await Promise.all([
+        const [campsData, expiriesData, types] = await Promise.all([
           api.getCamps(),
-          api.getExpiries({ status: 'expired' })
+          api.getExpiries({ status: 'expired' }),
+          typesApi.getAreaTypes()
         ]);
         setCamps(campsData);
         setExpiries(expiriesData);
+        setAreaTypes(types);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'נכשל בטעינת הנתונים');
@@ -68,6 +72,7 @@ export default function Tracking() {
         status: filters.status,
         dateFrom: filters.dateFrom || undefined,
         dateTo: filters.dateTo || undefined,
+        typeId: filters.typeId || undefined,
       });
       setExpiries(data);
       setError(null);
@@ -151,7 +156,7 @@ export default function Tracking() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
           <div>
             <label className="block text-xs text-gray-600 mb-1">חיפוש</label>
             <input
@@ -202,6 +207,19 @@ export default function Tracking() {
             </select>
           </div>
           <div>
+            <label className="block text-xs text-gray-600 mb-1">סוג אזור</label>
+            <select
+              value={filters.typeId}
+              onChange={(e) => setFilters(prev => ({ ...prev, typeId: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded"
+            >
+              <option value="">הכל</option>
+              {areaTypes.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-xs text-gray-600 mb-1">מתאריך</label>
             <input
               type="date"
@@ -222,7 +240,7 @@ export default function Tracking() {
         </div>
         <div className="flex justify-end mt-3 space-x-2">
           <button
-            onClick={() => setFilters({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '' })}
+            onClick={() => setFilters({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '', typeId: '' })}
             className="px-4 py-2 border border-gray-300 rounded"
           >
             נקה

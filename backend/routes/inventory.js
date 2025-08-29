@@ -250,7 +250,7 @@ router.get('/analytics/overview', async (req, res) => {
 // Search inventory items across all camps and areas
 router.get('/analytics/search', async (req, res) => {
   try {
-    const { q: query, itemName, campId, minQuantity, maxQuantity } = req.query;
+    const { q: query, itemName, campId, minQuantity, maxQuantity, typeId } = req.query;
     
     // Build the aggregation pipeline for efficient searching
     const pipeline = [];
@@ -259,6 +259,9 @@ router.get('/analytics/search', async (req, res) => {
     const matchStage = {};
     if (campId) {
       matchStage.campId = campId;
+    }
+    if (typeId) {
+      matchStage.typeId = typeId;
     }
     
     // Add match for inventory items if we have specific item criteria
@@ -329,7 +332,9 @@ router.get('/analytics/search', async (req, res) => {
         campId: '$campId',
         campName: { $arrayElemAt: ['$camp.name', 0] },
         areaId: '$id',
-        areaName: '$name'
+        areaName: '$name',
+        typeId: '$typeId',
+        typeName: '$typeName'
       }
     });
     
@@ -420,13 +425,14 @@ router.get('/analytics/item/:itemName', async (req, res) => {
 // List expiring inventory items across all camps and areas
 router.get('/expiries', async (req, res) => {
   try {
-    const { q, itemName, campId, areaId, status, dateFrom, dateTo } = req.query;
+    const { q, itemName, campId, areaId, status, dateFrom, dateTo, typeId } = req.query;
 
     const pipeline = [];
 
     const matchAreaStage = {};
     if (campId) matchAreaStage.campId = campId;
     if (areaId) matchAreaStage.id = areaId;
+    if (typeId) matchAreaStage.typeId = typeId;
     if (Object.keys(matchAreaStage).length > 0) {
       pipeline.push({ $match: matchAreaStage });
     }
@@ -490,6 +496,8 @@ router.get('/expiries', async (req, res) => {
         campName: { $arrayElemAt: ['$camp.name', 0] },
         areaId: '$id',
         areaName: '$name',
+        typeId: '$typeId',
+        typeName: '$typeName',
         isExpired: { $lt: ['$inventoryItems.expiryDate', now] }
       }
     });

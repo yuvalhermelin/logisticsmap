@@ -6,6 +6,7 @@ require('dotenv').config();
 const campRoutes = require('./routes/camps');
 const inventoryRoutes = require('./routes/inventory');
 const alertRoutes = require('./routes/alerts');
+const typeRoutes = require('./routes/types');
 const fileRoutes = require('./routes/files');
 
 const app = express();
@@ -21,6 +22,7 @@ app.use('/api/camps', campRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/types', typeRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

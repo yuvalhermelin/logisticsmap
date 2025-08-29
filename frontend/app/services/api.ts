@@ -32,6 +32,8 @@ export interface InventoryItemCatalog {
 export interface PolygonAreaDB {
   id: string;
   name: string;
+  typeId?: string | null;
+  typeName?: string | null;
   positions: { lat: number; lng: number }[];
   inventoryItems?: InventoryItem[];
   files?: FileItem[];
@@ -51,6 +53,8 @@ export interface CampDB {
 export interface PolygonArea {
   id: string;
   name: string;
+  typeId?: string | null;
+  typeName?: string | null;
   positions: LatLngExpression[];
   inventoryItems?: InventoryItem[];
   files?: FileItem[];
@@ -72,6 +76,8 @@ const convertCampFromDB = (campDB: CampDB): Camp => {
     polygonAreas: campDB.polygonAreas.map(polygon => ({
       id: polygon.id,
       name: polygon.name,
+      typeId: polygon.typeId ?? null,
+      typeName: polygon.typeName ?? null,
       positions: polygon.positions.map(pos => [pos.lat, pos.lng] as LatLngExpression),
       inventoryItems: polygon.inventoryItems || [],
       files: polygon.files || []
@@ -84,6 +90,8 @@ const convertPolygonToDBFormat = (polygon: PolygonArea) => {
   return {
     id: polygon.id,
     name: polygon.name,
+    typeId: polygon.typeId ?? null,
+    typeName: polygon.typeName ?? null,
     positions: polygon.positions.map(pos => {
       const [lat, lng] = pos as [number, number];
       return { lat, lng };
@@ -388,6 +396,7 @@ export const api = {
     query?: string;
     itemName?: string;
     campId?: string;
+    typeId?: string;
     minQuantity?: number;
     maxQuantity?: number;
   }): Promise<any[]> {
@@ -396,6 +405,7 @@ export const api = {
       if (params.query) searchParams.append('q', params.query);
       if (params.itemName) searchParams.append('itemName', params.itemName);
       if (params.campId) searchParams.append('campId', params.campId);
+      if (params.typeId) searchParams.append('typeId', params.typeId);
       if (params.minQuantity !== undefined) searchParams.append('minQuantity', params.minQuantity.toString());
       if (params.maxQuantity !== undefined) searchParams.append('maxQuantity', params.maxQuantity.toString());
 
@@ -521,6 +531,7 @@ export const api = {
     status?: 'expired' | 'active' | 'all';
     dateFrom?: string; // ISO
     dateTo?: string;   // ISO
+    typeId?: string;
   }): Promise<any[]> {
     try {
       const searchParams = new URLSearchParams();
@@ -532,6 +543,7 @@ export const api = {
         if (params.status) searchParams.append('status', params.status);
         if (params.dateFrom) searchParams.append('dateFrom', params.dateFrom);
         if (params.dateTo) searchParams.append('dateTo', params.dateTo);
+        if (params.typeId) searchParams.append('typeId', params.typeId);
       }
       const qs = searchParams.toString();
       const response = await fetch(`${API_BASE_URL}/inventory/expiries${qs ? `?${qs}` : ''}`);
@@ -553,3 +565,24 @@ export const api = {
 
   async getTriggeredAlerts(): Promise<any[]> { return []; }
 }; 
+
+// Area Types API helpers exposed alongside main api for convenience
+export const typesApi = {
+  async getAreaTypes(): Promise<{ id: string; name: string; createdAt?: string; updatedAt?: string }[]> {
+    const response = await fetch(`${API_BASE_URL}/types`);
+    if (!response.ok) throw new Error(`Failed to fetch area types: ${response.statusText}`);
+    return await response.json();
+  },
+  async createAreaType(name: string): Promise<{ id: string; name: string }>{
+    const response = await fetch(`${API_BASE_URL}/types`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to create area type: ${response.statusText}`);
+    }
+    return await response.json();
+  }
+};

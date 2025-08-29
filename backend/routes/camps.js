@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Camp = require('../models/Camp');
 const PolygonArea = require('../models/PolygonArea');
+const AreaType = require('../models/AreaType');
 
 // Get all camps
 router.get('/', async (req, res) => {
@@ -119,10 +120,33 @@ router.post('/:campId/polygons', async (req, res) => {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
-    // Create new polygon area with campId
+    // Resolve type if provided (typeId or typeName)
+    let finalTypeId = null;
+    let finalTypeName = null;
+    if (polygonData.typeId || polygonData.typeName) {
+      let typeDoc = null;
+      if (polygonData.typeId) {
+        typeDoc = await AreaType.findOne({ id: polygonData.typeId });
+      } else if (polygonData.typeName) {
+        typeDoc = await AreaType.findOne({ name: polygonData.typeName.trim() });
+        if (!typeDoc && polygonData.typeName.trim()) {
+          // Auto-create new type
+          const { v4: uuidv4 } = require('uuid');
+          typeDoc = await new AreaType({ id: uuidv4(), name: polygonData.typeName.trim() }).save();
+        }
+      }
+      if (typeDoc) {
+        finalTypeId = typeDoc.id;
+        finalTypeName = typeDoc.name;
+      }
+    }
+
+    // Create new polygon area with campId and resolved type
     const polygonArea = new PolygonArea({
       ...polygonData,
-      campId: campId
+      campId: campId,
+      typeId: finalTypeId,
+      typeName: finalTypeName
     });
     
     await polygonArea.save();
@@ -152,10 +176,32 @@ router.put('/:campId/polygons/:polygonId', async (req, res) => {
       return res.status(404).json({ error: 'Camp not found' });
     }
     
+    // Resolve type if provided and normalize stored fields
+    const updateDoc = { ...polygonData };
+    if (polygonData.typeId || polygonData.typeName) {
+      let typeDoc = null;
+      if (polygonData.typeId) {
+        typeDoc = await AreaType.findOne({ id: polygonData.typeId });
+      } else if (polygonData.typeName) {
+        typeDoc = await AreaType.findOne({ name: polygonData.typeName.trim() });
+        if (!typeDoc && polygonData.typeName.trim()) {
+          const { v4: uuidv4 } = require('uuid');
+          typeDoc = await new AreaType({ id: uuidv4(), name: polygonData.typeName.trim() }).save();
+        }
+      }
+      if (typeDoc) {
+        updateDoc.typeId = typeDoc.id;
+        updateDoc.typeName = typeDoc.name;
+      } else {
+        updateDoc.typeId = null;
+        updateDoc.typeName = null;
+      }
+    }
+
     // Update the polygon area
     const updatedPolygon = await PolygonArea.findOneAndUpdate(
       { id: polygonId, campId: campId },
-      polygonData,
+      updateDoc,
       { new: true, runValidators: true }
     );
     

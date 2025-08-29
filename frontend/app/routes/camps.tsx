@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Route } from "./+types/camps";
-import { api, type Camp, type PolygonArea, type InventoryItem } from "../services/api";
+import { api, typesApi, type Camp } from "../services/api";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -18,13 +18,16 @@ export default function Camps() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedCamps, setExpandedCamps] = useState<ExpandedCamps>({});
+  const [types, setTypes] = useState<{ id: string; name: string }[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string>('');
 
   useEffect(() => {
     const fetchCamps = async () => {
       try {
         setLoading(true);
-        const data = await api.getCamps();
+        const [data, typeList] = await Promise.all([api.getCamps(), typesApi.getAreaTypes()]);
         setCamps(data);
+        setTypes(typeList);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'נכשל באחזור המחנות');
@@ -84,6 +87,25 @@ export default function Camps() {
         <p className="text-gray-600">
           סקירה מלאה של כל המחנות, האזורים שלהם והגדרות המלבנים
         </p>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <div className="flex items-end space-x-3">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">סינון לפי סוג אזור</label>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded"
+            >
+              <option value="">הכל</option>
+              {types.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {camps.length === 0 ? (
@@ -198,11 +220,16 @@ export default function Camps() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-200">
-                                {camp.polygonAreas.map((area) => {
+                                {camp.polygonAreas
+                                  .filter(area => !typeFilter || area.typeId === typeFilter)
+                                  .map((area) => {
                                   return (
                                     <tr key={area.id} className="hover:bg-gray-50">
                                       <td className="px-4 py-2 text-sm font-medium text-gray-900">
                                         {area.name}
+                                        {area.typeName && (
+                                          <div className="text-xs text-gray-500">סוג: {area.typeName}</div>
+                                        )}
                                       </td>
                                       <td className="px-4 py-2 text-sm text-gray-500 font-mono">
                                         {area.id}

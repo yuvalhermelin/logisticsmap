@@ -3,7 +3,7 @@ import type { LatLngExpression, LatLngBounds } from 'leaflet';
 import { useEffect, useState, useRef } from 'react';
 import { EditControl } from 'react-leaflet-draw';
 import Swal from 'sweetalert2';
-import { api, type Camp, type PolygonArea } from '../services/api';
+import { api, typesApi, type Camp, type PolygonArea } from '../services/api';
 import InventoryManagement from './InventoryManagement';
 
 // Function to fix default markers and load CSS - only runs in browser
@@ -109,6 +109,9 @@ function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, cam
             <strong>אזור: {polygon.name}</strong>
             <br />
             <em>במחנה: {campName}</em>
+            {polygon.typeName && (
+              <div className="text-xs text-gray-600 mt-1">סוג: {polygon.typeName}</div>
+            )}
           </div>
 
           {/* Inventory Section */}
@@ -126,6 +129,48 @@ function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, cam
             <div className="mt-3 pt-3 border-t space-y-2">
               <div className="text-xs text-gray-600 mt-2">
                 השתמש בכלי העריכה בסרגל הכלים כדי לשנות את הפוליגון הזה
+              </div>
+              {/* Type selector */}
+              <div className="flex items-center space-x-2">
+                <select
+                  value={polygon.typeId || ''}
+                  onChange={async (e) => {
+                    const selectedId = e.target.value;
+                    let typeId = selectedId || null;
+                    let typeName = null as string | null;
+                    if (selectedId === '__new') {
+                      const { value: newTypeName } = await Swal.fire({
+                        title: 'סוג אזור חדש',
+                        input: 'text',
+                        inputPlaceholder: 'שם סוג...',
+                        showCancelButton: true,
+                        confirmButtonText: 'צור',
+                        cancelButtonText: 'ביטול'
+                      });
+                      if (newTypeName && newTypeName.trim()) {
+                        const created = await typesApi.createAreaType(newTypeName.trim());
+                        typeId = created.id;
+                        typeName = created.name;
+                      } else {
+                        return;
+                      }
+                    } else if (selectedId) {
+                      const picked = areaTypes.find(t => t.id === selectedId);
+                      typeName = picked ? picked.name : null;
+                    }
+                    const updated: PolygonArea = { ...polygon, typeId, typeName };
+                    await updatePolygonArea(campId, updated);
+                    // Refresh camps to ensure UI sync
+                    api.getCamps().then(setCamps).catch(console.error);
+                  }}
+                  className="px-2 py-1 text-xs border border-gray-300 rounded"
+                >
+                  <option value="">בחר סוג אזור...</option>
+                  {areaTypes.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                  <option value="__new">+ הוסף סוג חדש</option>
+                </select>
               </div>
               <button
                 onClick={onDelete}
@@ -510,6 +555,7 @@ export default function Map({
   const [selectedCampId, setSelectedCampId] = useState<string | null>(null);
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
   const [editingCampId, setEditingCampId] = useState<string | null>(null);
+  const [areaTypes, setAreaTypes] = useState<{ id: string; name: string }[]>([]);
   const featureGroupRef = useRef<any>(null);
   const originalBoundsRef = useRef<{[key: string]: any}>({});
   const layerToPolygonRef = useRef<{[key: string]: {campId: string, polygonId: string}}>({});
@@ -572,8 +618,12 @@ export default function Map({
       try {
         setIsLoading(true);
         setError(null);
-        const loadedCamps = await api.getCamps();
+        const [loadedCamps, loadedTypes] = await Promise.all([
+          api.getCamps(),
+          typesApi.getAreaTypes()
+        ]);
         setCamps(loadedCamps);
+        setAreaTypes(loadedTypes);
       } catch (err) {
         console.error('Failed to load camps:', err);
         setError('נכשל בטעינת המחנות ממסד הנתונים');
@@ -832,14 +882,14 @@ export default function Map({
       return;
     }
     
-    // Prompt user for polygon area name using SweetAlert2
+    // Prompt user for polygon area details (name + type)
     const { value: areaName } = await Swal.fire({
       title: 'אזור חדש',
       text: 'הכנס שם לאזור הזה:',
       input: 'text',
       inputPlaceholder: 'שם האזור...',
       showCancelButton: true,
-      confirmButtonText: 'צור אזור',
+      confirmButtonText: 'הבא',
       cancelButtonText: 'ביטול',
       confirmButtonColor: '#3085d6',
       cancelButtonColor: '#d33',
@@ -852,10 +902,51 @@ export default function Map({
     });
 
     if (areaName && areaName.trim()) {
+      // Ask for area type
+      let typeId: string | null = null;
+      let typeName: string | null = null;
+      const typeOptions = areaTypes.reduce((acc, t) => ({ ...acc, [t.id]: t.name }), {} as Record<string, string>);
+      const { value: chosen } = await Swal.fire({
+        title: 'בחר סוג אזור',
+        input: 'select',
+        inputOptions: { ...typeOptions, __new: '+ הוסף סוג חדש' },
+        inputPlaceholder: 'בחר סוג...',
+        showCancelButton: true,
+        confirmButtonText: 'אישור',
+        cancelButtonText: 'דלג',
+      });
+      if (chosen === '__new') {
+        const { value: newTypeName } = await Swal.fire({
+          title: 'סוג אזור חדש',
+          input: 'text',
+          inputPlaceholder: 'שם סוג...',
+          showCancelButton: true,
+          confirmButtonText: 'צור',
+          cancelButtonText: 'ביטול'
+        });
+        if (newTypeName && newTypeName.trim()) {
+          try {
+            const created = await typesApi.createAreaType(newTypeName.trim());
+            setAreaTypes(prev => [...prev, created]);
+            typeId = created.id;
+            typeName = created.name;
+          } catch (e) {
+            console.error('Failed to create area type', e);
+          }
+        }
+      } else if (chosen && chosen !== '') {
+        const picked = areaTypes.find(t => t.id === chosen);
+        if (picked) {
+          typeId = picked.id;
+          typeName = picked.name;
+        }
+      }
       try {
         const newPolygon: PolygonArea = {
           id: Date.now().toString(),
           name: areaName.trim(),
+          typeId,
+          typeName,
           positions: positions
         };
 
