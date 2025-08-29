@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Route } from "./+types/inventory-analytics";
-import { api, typesApi } from "../services/api";
+import { api, typesApi, statusesApi } from "../services/api";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -39,6 +39,7 @@ interface SearchFilters {
   itemName: string;
   campId: string;
   typeId: string;
+  statusId: string;
   minQuantity: string;
   maxQuantity: string;
 }
@@ -53,10 +54,12 @@ export default function InventoryAnalytics() {
     itemName: '',
     campId: '',
     typeId: '',
+    statusId: '',
     minQuantity: '',
     maxQuantity: ''
   });
   const [areaTypes, setAreaTypes] = useState<{ id: string; name: string }[]>([]);
+  const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -66,6 +69,7 @@ export default function InventoryAnalytics() {
   useEffect(() => {
     loadAnalytics();
     typesApi.getAreaTypes().then(setAreaTypes).catch(console.error);
+    statusesApi.getAreaStatuses().then(setStatuses).catch(console.error);
   }, []);
 
   const loadAnalytics = async () => {
@@ -95,6 +99,7 @@ export default function InventoryAnalytics() {
         itemName: searchFilters.itemName || undefined,
         campId: searchFilters.campId || undefined,
         typeId: searchFilters.typeId || undefined,
+        statusId: searchFilters.statusId || undefined,
         minQuantity: searchFilters.minQuantity ? parseInt(searchFilters.minQuantity) : undefined,
         maxQuantity: searchFilters.maxQuantity ? parseInt(searchFilters.maxQuantity) : undefined,
       });
@@ -123,6 +128,7 @@ export default function InventoryAnalytics() {
       itemName: '',
       campId: '',
       typeId: '',
+      statusId: '',
       minQuantity: '',
       maxQuantity: ''
     });
@@ -414,6 +420,19 @@ export default function InventoryAnalytics() {
                   <option value="">הכל</option>
                   {areaTypes.map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">סטטוס אזור</label>
+                <select
+                  value={searchFilters.statusId}
+                  onChange={(e) => setSearchFilters(prev => ({ ...prev, statusId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">הכל</option>
+                  {statuses.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               </div>

@@ -8,6 +8,7 @@ const inventoryRoutes = require('./routes/inventory');
 const alertRoutes = require('./routes/alerts');
 const typeRoutes = require('./routes/types');
 const fileRoutes = require('./routes/files');
+const statusRoutes = require('./routes/statuses');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,6 +24,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/types', typeRoutes);
+app.use('/api/statuses', statusRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

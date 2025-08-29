@@ -5,6 +5,7 @@ const path = require('path');
 const Camp = require('../models/Camp');
 const PolygonArea = require('../models/PolygonArea');
 const AreaType = require('../models/AreaType');
+const AreaStatus = require('../models/AreaStatus');
 
 // Get camps (defaults to non-archived). Query: archived=true|false|all
 router.get('/', async (req, res) => {
@@ -231,12 +232,34 @@ router.post('/:campId/polygons', async (req, res) => {
       }
     }
 
+    // Resolve status if provided (statusId or statusName)
+    let finalStatusId = null;
+    let finalStatusName = null;
+    if (polygonData.statusId || polygonData.statusName) {
+      let statusDoc = null;
+      if (polygonData.statusId) {
+        statusDoc = await AreaStatus.findOne({ id: polygonData.statusId });
+      } else if (polygonData.statusName) {
+        statusDoc = await AreaStatus.findOne({ name: polygonData.statusName.trim() });
+        if (!statusDoc && polygonData.statusName.trim()) {
+          const { v4: uuidv4 } = require('uuid');
+          statusDoc = await new AreaStatus({ id: uuidv4(), name: polygonData.statusName.trim() }).save();
+        }
+      }
+      if (statusDoc) {
+        finalStatusId = statusDoc.id;
+        finalStatusName = statusDoc.name;
+      }
+    }
+
     // Create new polygon area with campId and resolved type
     const polygonArea = new PolygonArea({
       ...polygonData,
       campId: campId,
       typeId: finalTypeId,
-      typeName: finalTypeName
+      typeName: finalTypeName,
+      statusId: finalStatusId,
+      statusName: finalStatusName
     });
     
     await polygonArea.save();
@@ -289,6 +312,27 @@ router.put('/:campId/polygons/:polygonId', async (req, res) => {
       } else {
         updateDoc.typeId = null;
         updateDoc.typeName = null;
+      }
+    }
+
+    // Resolve status if provided
+    if (polygonData.statusId || polygonData.statusName) {
+      let statusDoc = null;
+      if (polygonData.statusId) {
+        statusDoc = await AreaStatus.findOne({ id: polygonData.statusId });
+      } else if (polygonData.statusName) {
+        statusDoc = await AreaStatus.findOne({ name: polygonData.statusName.trim() });
+        if (!statusDoc && polygonData.statusName.trim()) {
+          const { v4: uuidv4 } = require('uuid');
+          statusDoc = await new AreaStatus({ id: uuidv4(), name: polygonData.statusName.trim() }).save();
+        }
+      }
+      if (statusDoc) {
+        updateDoc.statusId = statusDoc.id;
+        updateDoc.statusName = statusDoc.name;
+      } else {
+        updateDoc.statusId = null;
+        updateDoc.statusName = null;
       }
     }
 

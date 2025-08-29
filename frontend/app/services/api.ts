@@ -34,6 +34,8 @@ export interface PolygonAreaDB {
   name: string;
   typeId?: string | null;
   typeName?: string | null;
+  statusId?: string | null;
+  statusName?: string | null;
   positions: { lat: number; lng: number }[];
   inventoryItems?: InventoryItem[];
   files?: FileItem[];
@@ -56,6 +58,8 @@ export interface PolygonArea {
   name: string;
   typeId?: string | null;
   typeName?: string | null;
+  statusId?: string | null;
+  statusName?: string | null;
   positions: LatLngExpression[];
   inventoryItems?: InventoryItem[];
   files?: FileItem[];
@@ -81,6 +85,8 @@ const convertCampFromDB = (campDB: CampDB): Camp => {
       name: polygon.name,
       typeId: polygon.typeId ?? null,
       typeName: polygon.typeName ?? null,
+      statusId: polygon.statusId ?? null,
+      statusName: polygon.statusName ?? null,
       positions: polygon.positions.map(pos => [pos.lat, pos.lng] as LatLngExpression),
       inventoryItems: polygon.inventoryItems || [],
       files: polygon.files || []
@@ -95,6 +101,8 @@ const convertPolygonToDBFormat = (polygon: PolygonArea) => {
     name: polygon.name,
     typeId: polygon.typeId ?? null,
     typeName: polygon.typeName ?? null,
+    statusId: polygon.statusId ?? null,
+    statusName: polygon.statusName ?? null,
     positions: polygon.positions.map(pos => {
       const [lat, lng] = pos as [number, number];
       return { lat, lng };
@@ -435,6 +443,7 @@ export const api = {
     itemName?: string;
     campId?: string;
     typeId?: string;
+    statusId?: string;
     minQuantity?: number;
     maxQuantity?: number;
   }): Promise<any[]> {
@@ -444,6 +453,7 @@ export const api = {
       if (params.itemName) searchParams.append('itemName', params.itemName);
       if (params.campId) searchParams.append('campId', params.campId);
       if (params.typeId) searchParams.append('typeId', params.typeId);
+      if (params.statusId) searchParams.append('statusId', params.statusId);
       if (params.minQuantity !== undefined) searchParams.append('minQuantity', params.minQuantity.toString());
       if (params.maxQuantity !== undefined) searchParams.append('maxQuantity', params.maxQuantity.toString());
 
@@ -570,6 +580,7 @@ export const api = {
     dateFrom?: string; // ISO
     dateTo?: string;   // ISO
     typeId?: string;
+    statusId?: string;
   }): Promise<any[]> {
     try {
       const searchParams = new URLSearchParams();
@@ -582,6 +593,7 @@ export const api = {
         if (params.dateFrom) searchParams.append('dateFrom', params.dateFrom);
         if (params.dateTo) searchParams.append('dateTo', params.dateTo);
         if (params.typeId) searchParams.append('typeId', params.typeId);
+        if (params.statusId) searchParams.append('statusId', params.statusId);
       }
       const qs = searchParams.toString();
       const response = await fetch(`${API_BASE_URL}/inventory/expiries${qs ? `?${qs}` : ''}`);
@@ -620,6 +632,27 @@ export const typesApi = {
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.error || `Failed to create area type: ${response.statusText}`);
+    }
+    return await response.json();
+  }
+};
+
+// Area Statuses API helpers
+export const statusesApi = {
+  async getAreaStatuses(): Promise<{ id: string; name: string; createdAt?: string; updatedAt?: string }[]> {
+    const response = await fetch(`${API_BASE_URL}/statuses`);
+    if (!response.ok) throw new Error(`Failed to fetch area statuses: ${response.statusText}`);
+    return await response.json();
+  },
+  async createAreaStatus(name: string): Promise<{ id: string; name: string }>{
+    const response = await fetch(`${API_BASE_URL}/statuses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to create area status: ${response.statusText}`);
     }
     return await response.json();
   }

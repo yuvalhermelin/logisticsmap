@@ -180,6 +180,48 @@ function EditablePolygon({ polygon, isEditing, onUpdate, onDelete, campName, cam
                   <option value="__new">+ הוסף סוג חדש</option>
                 </select>
               </div>
+              {/* Status selector */}
+              <div className="flex items-center space-x-2">
+                <select
+                  value={polygon.statusId || ''}
+                  onChange={async (e) => {
+                    const selectedId = e.target.value;
+                    let statusId = selectedId || null;
+                    let statusName = null as string | null;
+                    const { statusesApi } = await import('../services/api');
+                    if (selectedId === '__new') {
+                      const { value: newStatusName } = await Swal.fire({
+                        title: 'סטטוס אזור חדש',
+                        input: 'text',
+                        inputPlaceholder: 'שם סטטוס...',
+                        showCancelButton: true,
+                        confirmButtonText: 'צור',
+                        cancelButtonText: 'ביטול'
+                      });
+                      if (newStatusName && newStatusName.trim()) {
+                        const created = await statusesApi.createAreaStatus(newStatusName.trim());
+                        statusId = created.id;
+                        statusName = created.name;
+                      } else {
+                        return;
+                      }
+                    } else if (selectedId) {
+                      const list = await statusesApi.getAreaStatuses();
+                      const picked = list.find((s) => s.id === selectedId);
+                      statusName = picked ? picked.name : null;
+                    }
+                    const updated: PolygonArea = { ...polygon, statusId, statusName };
+                    onUpdate(updated);
+                  }}
+                  className="px-2 py-1 text-xs border border-gray-300 rounded"
+                >
+                  <option value="">בחר סטטוס אזור...</option>
+                  {/* We'll fetch statuses at interaction to keep bundle small */}
+                  {/* Render dynamic list by fetching now */}
+                  {null}
+                  <option value="__new">+ הוסף סטטוס חדש</option>
+                </select>
+              </div>
               <button
                 onClick={onDelete}
                 className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 w-full"
@@ -965,12 +1007,51 @@ export default function Map({
           typeName = picked.name;
         }
       }
+
+      // Ask for area status
+      let statusId: string | null = null;
+      let statusName: string | null = null;
+      try {
+        const statuses = await (await import('../services/api')).statusesApi.getAreaStatuses();
+        const statusOptions = statuses.reduce((acc, s) => ({ ...acc, [s.id]: s.name }), {} as Record<string, string>);
+        const { value: chosenStatus } = await Swal.fire({
+          title: 'בחר סטטוס אזור',
+          input: 'select',
+          inputOptions: { ...statusOptions, __new: '+ הוסף סטטוס חדש' },
+          inputPlaceholder: 'בחר סטטוס...',
+          showCancelButton: true,
+          confirmButtonText: 'אישור',
+          cancelButtonText: 'דלג',
+        });
+        if (chosenStatus === '__new') {
+          const { value: newStatusName } = await Swal.fire({
+            title: 'סטטוס אזור חדש',
+            input: 'text',
+            inputPlaceholder: 'שם סטטוס...',
+            showCancelButton: true,
+            confirmButtonText: 'צור',
+            cancelButtonText: 'ביטול'
+          });
+          if (newStatusName && newStatusName.trim()) {
+            const created = await (await import('../services/api')).statusesApi.createAreaStatus(newStatusName.trim());
+            statusId = created.id;
+            statusName = created.name;
+          }
+        } else if (chosenStatus && chosenStatus !== '') {
+          const picked = statuses.find((s) => s.id === chosenStatus);
+          if (picked) { statusId = picked.id; statusName = picked.name; }
+        }
+      } catch (e) {
+        console.error('Failed to load/create statuses', e);
+      }
       try {
         const newPolygon: PolygonArea = {
           id: Date.now().toString(),
           name: areaName.trim(),
           typeId,
           typeName,
+          statusId,
+          statusName,
           positions: positions
         };
 

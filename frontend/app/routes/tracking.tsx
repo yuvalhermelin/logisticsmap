@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, typesApi, type Camp } from "../services/api";
+import { api, typesApi, statusesApi, type Camp } from "../services/api";
 
 export function meta() {
   return [
@@ -38,19 +38,22 @@ export default function Tracking() {
   }>({ q: '', itemName: '', campId: '', areaId: '', status: 'expired', dateFrom: '', dateTo: '', typeId: '' });
   const [draftExpiryByKey, setDraftExpiryByKey] = useState<Record<string, string>>({});
   const [areaTypes, setAreaTypes] = useState<{ id: string; name: string }[]>([]);
+  const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     const init = async () => {
       try {
         setLoading(true);
-        const [campsData, expiriesData, types] = await Promise.all([
+        const [campsData, expiriesData, types, sts] = await Promise.all([
           api.getCamps(),
           api.getExpiries({ status: 'expired' }),
-          typesApi.getAreaTypes()
+          typesApi.getAreaTypes(),
+          statusesApi.getAreaStatuses()
         ]);
         setCamps(campsData);
         setExpiries(expiriesData);
         setAreaTypes(types);
+        setStatuses(sts);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'נכשל בטעינת הנתונים');
@@ -73,6 +76,7 @@ export default function Tracking() {
         dateFrom: filters.dateFrom || undefined,
         dateTo: filters.dateTo || undefined,
         typeId: filters.typeId || undefined,
+        statusId: undefined, // placeholder until UI added
       });
       setExpiries(data);
       setError(null);
@@ -156,7 +160,7 @@ export default function Tracking() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-8 gap-3 items-end">
           <div>
             <label className="block text-xs text-gray-600 mb-1">חיפוש</label>
             <input
@@ -216,6 +220,19 @@ export default function Tracking() {
               <option value="">הכל</option>
               {areaTypes.map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">סטטוס אזור</label>
+            <select
+              value={''}
+              onChange={(e) => setFilters(prev => ({ ...prev, /* add to api call when needed */ }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded"
+            >
+              <option value="">הכל</option>
+              {statuses.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </div>

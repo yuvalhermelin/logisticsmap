@@ -86,6 +86,17 @@ const polygonAreaSchema = new mongoose.Schema({
     required: false,
     default: null
   },
+  statusId: {
+    type: String,
+    required: false,
+    default: null,
+    index: true
+  },
+  statusName: {
+    type: String,
+    required: false,
+    default: null
+  },
   campId: {
     type: String,
     required: true,
@@ -105,5 +116,6 @@ const polygonAreaSchema = new mongoose.Schema({
 polygonAreaSchema.index({ campId: 1 });
 polygonAreaSchema.index({ 'inventoryItems.name': 1 });
 polygonAreaSchema.index({ 'inventoryItems.expiryDate': 1 });
+polygonAreaSchema.index({ statusId: 1 });
 
 module.exports = mongoose.model('PolygonArea', polygonAreaSchema); 

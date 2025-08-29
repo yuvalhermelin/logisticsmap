@@ -259,7 +259,7 @@ router.get('/analytics/overview', async (req, res) => {
 // Search inventory items across all camps and areas
 router.get('/analytics/search', async (req, res) => {
   try {
-    const { q: query, itemName, campId, minQuantity, maxQuantity, typeId } = req.query;
+    const { q: query, itemName, campId, minQuantity, maxQuantity, typeId, statusId } = req.query;
     
     // Build the aggregation pipeline for efficient searching
     const pipeline = [];
@@ -271,6 +271,9 @@ router.get('/analytics/search', async (req, res) => {
     }
     if (typeId) {
       matchStage.typeId = typeId;
+    }
+    if (statusId) {
+      matchStage.statusId = statusId;
     }
     
     // Add match for inventory items if we have specific item criteria
@@ -434,7 +437,7 @@ router.get('/analytics/item/:itemName', async (req, res) => {
 // List expiring inventory items across all camps and areas
 router.get('/expiries', async (req, res) => {
   try {
-    const { q, itemName, campId, areaId, status, dateFrom, dateTo, typeId } = req.query;
+    const { q, itemName, campId, areaId, status, dateFrom, dateTo, typeId, statusId } = req.query;
 
     const pipeline = [];
 
@@ -442,6 +445,7 @@ router.get('/expiries', async (req, res) => {
     if (campId) matchAreaStage.campId = campId;
     if (areaId) matchAreaStage.id = areaId;
     if (typeId) matchAreaStage.typeId = typeId;
+    if (statusId) matchAreaStage.statusId = statusId;
     // Exclude archived via lookup below
 
     pipeline.push({ $unwind: '$inventoryItems' });

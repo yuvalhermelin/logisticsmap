@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Route } from "./+types/camps";
-import { api, typesApi, type Camp } from "../services/api";
+import { api, typesApi, type Camp, statusesApi } from "../services/api";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -20,14 +20,17 @@ export default function Camps() {
   const [expandedCamps, setExpandedCamps] = useState<ExpandedCamps>({});
   const [types, setTypes] = useState<{ id: string; name: string }[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     const fetchCamps = async () => {
       try {
         setLoading(true);
-        const [data, typeList] = await Promise.all([api.getCamps(false), typesApi.getAreaTypes()]);
+        const [data, typeList, statusList] = await Promise.all([api.getCamps(false), typesApi.getAreaTypes(), statusesApi.getAreaStatuses()]);
         setCamps(data);
         setTypes(typeList);
+        setStatuses(statusList);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'נכשל באחזור המחנות');
@@ -102,6 +105,19 @@ export default function Camps() {
               <option value="">הכל</option>
               {types.map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">סינון לפי סטטוס</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded"
+            >
+              <option value="">הכל</option>
+              {statuses.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </div>
@@ -221,7 +237,7 @@ export default function Camps() {
                               </thead>
                               <tbody className="divide-y divide-gray-200">
                                 {camp.polygonAreas
-                                  .filter(area => !typeFilter || area.typeId === typeFilter)
+                                  .filter(area => (!typeFilter || area.typeId === typeFilter) && (!statusFilter || area.statusId === statusFilter))
                                   .map((area) => {
                                   return (
                                     <tr key={area.id} className="hover:bg-gray-50">
@@ -229,6 +245,9 @@ export default function Camps() {
                                         {area.name}
                                         {area.typeName && (
                                           <div className="text-xs text-gray-500">סוג: {area.typeName}</div>
+                                        )}
+                                        {area.statusName && (
+                                          <div className="text-xs text-gray-500">סטטוס: {area.statusName}</div>
                                         )}
                                       </td>
                                       <td className="px-4 py-2 text-sm text-gray-500 font-mono">
