@@ -47,7 +47,7 @@ export default function Map({
   const featureGroupRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
   const [currentZoom, setCurrentZoom] = useState<number>(zoom);
-  const LABEL_ZOOM_THRESHOLD = 13;
+  const CONTENT_ZOOM_THRESHOLD = 12;
   const originalBoundsRef = useRef<{[key: string]: any}>({});
   const layerToPolygonRef = useRef<{[key: string]: {campId: string, polygonId: string}}>({});
   const layerToCampRef = useRef<{[key: string]: string}>({});
@@ -969,7 +969,7 @@ export default function Map({
                 weight={editingCampId === camp.id ? 5 : (selectedCampId === camp.id ? 4 : 2)}
                 dashArray={editingCampId === camp.id ? "5, 5" : (selectedCampId === camp.id ? "10, 5" : undefined)}
               >
-                {labelsEnabled && currentZoom < LABEL_ZOOM_THRESHOLD && (
+                {labelsEnabled && currentZoom < CONTENT_ZOOM_THRESHOLD && (
                   <Tooltip permanent direction="center" opacity={1} className="!bg-white !bg-opacity-80 !text-gray-800 !px-2 !py-1 !rounded !border !border-gray-300">
                     <span className="text-xs font-semibold">{camp.name}</span>
                   </Tooltip>
@@ -1026,37 +1026,39 @@ export default function Map({
               </Polygon>
 
               {/* Enhanced polygon areas within the camp */}
-              {camp.polygonAreas
-                .filter((polygon) => (!typeFilter || (polygon.typeId || '') === typeFilter) && (!statusFilter || (polygon.statusId || '') === statusFilter))
-                .map((polygon) => (
-                <EditablePolygon
-                  key={polygon.id}
-                  polygon={polygon}
-                  isEditing={true}
-                  onUpdate={(updatedPolygon) => { if (!isArchiveMode) updatePolygonArea(camp.id, updatedPolygon); }}
-                  onDelete={() => { if (!isArchiveMode) deletePolygonArea(camp.id, polygon.id); }}
-                  campName={camp.name}
-                  campId={camp.id}
-                  onInventoryUpdated={() => {
-                    if (!isArchiveMode) {
-                      api.getCamps().then(setCamps).catch(console.error);
-                    }
-                  }}
-                  currentZoom={currentZoom}
-                  labelZoomThreshold={LABEL_ZOOM_THRESHOLD}
-                  labelEnabled={labelsEnabled}
-                  areaTypes={areaTypes}
-                  areaStatuses={areaStatuses}
-                  onTypeCreated={(created) => setAreaTypes((prev: { id: string; name: string }[]) => [...prev, created])}
-                  onStatusCreated={(created) => setAreaStatuses((prev: { id: string; name: string }[]) => [...prev, created])}
-                  isArchiveMode={isArchiveMode}
-                />
-              ))}
+              {currentZoom >= CONTENT_ZOOM_THRESHOLD && (
+                camp.polygonAreas
+                  .filter((polygon) => (!typeFilter || (polygon.typeId || '') === typeFilter) && (!statusFilter || (polygon.statusId || '') === statusFilter))
+                  .map((polygon) => (
+                  <EditablePolygon
+                    key={polygon.id}
+                    polygon={polygon}
+                    isEditing={true}
+                    onUpdate={(updatedPolygon) => { if (!isArchiveMode) updatePolygonArea(camp.id, updatedPolygon); }}
+                    onDelete={() => { if (!isArchiveMode) deletePolygonArea(camp.id, polygon.id); }}
+                    campName={camp.name}
+                    campId={camp.id}
+                    onInventoryUpdated={() => {
+                      if (!isArchiveMode) {
+                        api.getCamps().then(setCamps).catch(console.error);
+                      }
+                    }}
+                    currentZoom={currentZoom}
+                    labelZoomThreshold={CONTENT_ZOOM_THRESHOLD}
+                    labelEnabled={labelsEnabled}
+                    areaTypes={areaTypes}
+                    areaStatuses={areaStatuses}
+                    onTypeCreated={(created) => setAreaTypes((prev: { id: string; name: string }[]) => [...prev, created])}
+                    onStatusCreated={(created) => setAreaStatuses((prev: { id: string; name: string }[]) => [...prev, created])}
+                    isArchiveMode={isArchiveMode}
+                  />
+                ))
+              )}
 
               {/* Camp-level markers */}
-              {(markersByCamp[camp.id] || []).map((m) => (
+              {currentZoom >= CONTENT_ZOOM_THRESHOLD && (markersByCamp[camp.id] || []).map((m) => (
                 <CircleMarker key={m.id} center={[m.lat, m.lng]} pathOptions={{ color: m.color, fillColor: m.color }} radius={8}>
-                  {labelsEnabled && currentZoom >= LABEL_ZOOM_THRESHOLD && (
+                  {labelsEnabled && currentZoom >= CONTENT_ZOOM_THRESHOLD && (
                     <Tooltip permanent direction="top" opacity={1} className="!bg-white !bg-opacity-80 !text-gray-800 !px-2 !py-1 !rounded !border !border-gray-300">
                       <span className="text-[10px] font-semibold">{m.itemName} × {m.quantity}</span>
                     </Tooltip>
