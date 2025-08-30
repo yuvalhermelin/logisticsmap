@@ -874,7 +874,7 @@ export default function Map({
           )}
 
           {/* Labels, Filters, and Archive toggle controls */}
-          <div className="leaflet-top leaflet-right" style={{ pointerEvents: 'auto', marginTop: '80px', marginRight: '10px' }}>
+          <div className="leaflet-bottom leaflet-right" style={{ pointerEvents: 'auto', marginTop: '80px', marginRight: '10px' }}>
             <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl', marginBottom: '8px' }}>
               <label className="flex items-center space-x-2" style={{ gap: '8px' }}>
                 <input type="checkbox" checked={labelsEnabled} onChange={(e) => setLabelsEnabled(e.target.checked)} />
