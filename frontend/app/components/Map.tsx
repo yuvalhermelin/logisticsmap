@@ -53,12 +53,22 @@ export default function Map({
   const layerToCampRef = useRef<{[key: string]: string}>({});
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [areaStatuses, setAreaStatuses] = useState<{ id: string; name: string }[]>([]);
+  const isDrawingRef = useRef<boolean>(false);
   useLeafletSetup(featureGroupRef, originalBoundsRef);
 
   useEffect(() => {
-    if (mapRef.current) {
-      mapRef.current.on('zoomend', () => setCurrentZoom(mapRef.current.getZoom()));
-    }
+    if (!mapRef.current) return;
+    const handleZoomEnd = () => {
+      if (!isDrawingRef.current && mapRef.current) {
+        setCurrentZoom(mapRef.current.getZoom());
+      }
+    };
+    mapRef.current.on('zoomend', handleZoomEnd);
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.off('zoomend', handleZoomEnd);
+      }
+    };
   }, [mapRef.current]);
 
   //
@@ -341,6 +351,19 @@ export default function Map({
       if (featureGroupRef.current) {
         featureGroupRef.current.removeLayer(layer);
       }
+    }
+  };
+
+  // Track drawing lifecycle to prevent re-renders during draw
+  const handleDrawStart = () => {
+    isDrawingRef.current = true;
+  };
+
+  const handleDrawStop = () => {
+    isDrawingRef.current = false;
+    // Sync zoom once drawing ends to refresh labels if needed
+    if (mapRef.current) {
+      setCurrentZoom(mapRef.current.getZoom());
     }
   };
 
@@ -826,6 +849,8 @@ export default function Map({
               onCreated={selectedCampId ? handlePolygonCreated : handleCampCreated}
               onEdited={handleEdited}
               onDeleted={handleDeleted}
+              onDrawStart={handleDrawStart}
+              onDrawStop={handleDrawStop}
                           draw={{
               rectangle: false,
               circle: false,
