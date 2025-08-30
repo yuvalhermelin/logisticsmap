@@ -75,6 +75,19 @@ export interface Camp {
   polygonAreas: PolygonArea[];
 }
 
+export interface CampMarker {
+  id: string;
+  campId: string;
+  lat: number;
+  lng: number;
+  color: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  expiryDate?: string | null;
+  addedAt?: string;
+}
+
 // Convert from DB format to frontend format
 const convertCampFromDB = (campDB: CampDB): Camp => {
   return {
@@ -439,6 +452,44 @@ export const api = {
     } catch (error) {
       console.error('Error fetching inventory analytics:', error);
       throw error;
+    }
+  },
+
+  // Camp Markers
+  async getMarkers(campId: string): Promise<CampMarker[]> {
+    const response = await fetch(`${API_BASE_URL}/markers/${campId}`);
+    if (!response.ok) throw new Error(`Failed to fetch markers: ${response.statusText}`);
+    return await response.json();
+  },
+  async createMarker(params: { campId: string; lat: number; lng: number; color: string; inventoryItemId: string; quantity: number; expiryDate?: string | null; }): Promise<CampMarker> {
+    const response = await fetch(`${API_BASE_URL}/markers/${params.campId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: params.lat, lng: params.lng, color: params.color, inventoryItemId: params.inventoryItemId, quantity: params.quantity, expiryDate: params.expiryDate })
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to create marker: ${response.statusText}`);
+    }
+    return await response.json();
+  },
+  async updateMarker(params: { campId: string; markerId: string; lat?: number; lng?: number; color?: string; inventoryItemId?: string; quantity?: number; expiryDate?: string | null; }): Promise<CampMarker> {
+    const response = await fetch(`${API_BASE_URL}/markers/${params.campId}/${params.markerId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: params.lat, lng: params.lng, color: params.color, inventoryItemId: params.inventoryItemId, quantity: params.quantity, expiryDate: params.expiryDate })
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to update marker: ${response.statusText}`);
+    }
+    return await response.json();
+  },
+  async deleteMarker(campId: string, markerId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/markers/${campId}/${markerId}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Failed to delete marker: ${response.statusText}`);
     }
   },
 

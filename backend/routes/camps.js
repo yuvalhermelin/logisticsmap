@@ -6,6 +6,7 @@ const Camp = require('../models/Camp');
 const PolygonArea = require('../models/PolygonArea');
 const AreaType = require('../models/AreaType');
 const AreaStatus = require('../models/AreaStatus');
+const CampMarker = require('../models/CampMarker');
 
 // Get camps (defaults to non-archived). Query: archived=true|false|all
 router.get('/', async (req, res) => {
@@ -187,6 +188,8 @@ router.delete('/:campId/permanent', async (req, res) => {
       });
     });
     await PolygonArea.deleteMany({ campId });
+    // Delete all camp markers
+    await CampMarker.deleteMany({ campId });
 
     res.json({ message: 'Camp permanently deleted' });
   } catch (error) {

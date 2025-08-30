@@ -4,6 +4,7 @@ const InventoryItemCatalog = require('../models/InventoryItem');
 const Camp = require('../models/Camp');
 const PolygonArea = require('../models/PolygonArea');
 const { v4: uuidv4 } = require('uuid');
+const CampMarker = require('../models/CampMarker');
 
 // Get all inventory items from catalog
 router.get('/catalog', async (req, res) => {
@@ -434,7 +435,7 @@ router.get('/analytics/item/:itemName', async (req, res) => {
   }
 });
 
-// List expiring inventory items across all camps and areas
+// List expiring inventory items across areas and camp markers
 router.get('/expiries', async (req, res) => {
   try {
     const { q, itemName, campId, areaId, status, dateFrom, dateTo, typeId, statusId } = req.query;
@@ -523,8 +524,77 @@ router.get('/expiries', async (req, res) => {
     // Sort: expired first, then by soonest expiry
     pipeline.push({ $sort: { isExpired: -1, expiryDate: 1 } });
 
-    const results = await PolygonArea.aggregate(pipeline);
-    res.json(results);
+    const areaResults = await PolygonArea.aggregate(pipeline);
+
+    // Build marker query to mirror filters (camp-level only; no area/type/status filters apply)
+    const markerQuery = { };
+    if (campId) markerQuery.campId = campId;
+    if (itemName) markerQuery.itemName = new RegExp(itemName, 'i');
+    if (dateFrom || dateTo) {
+      markerQuery.expiryDate = markerQuery.expiryDate || {};
+      if (dateFrom) markerQuery.expiryDate.$gte = new Date(dateFrom);
+      if (dateTo) markerQuery.expiryDate.$lte = new Date(dateTo);
+    }
+    // Apply expired/active filter (reuse existing now)
+    if (status === 'expired') {
+      markerQuery.expiryDate = markerQuery.expiryDate || {};
+      markerQuery.expiryDate.$lt = now;
+    } else if (status === 'active') {
+      markerQuery.expiryDate = markerQuery.expiryDate || {};
+      markerQuery.expiryDate.$gte = now;
+    }
+    // Exclude null expiry unless explicitly asking for all
+    if (!markerQuery.expiryDate) {
+      markerQuery.expiryDate = { $ne: null };
+    }
+
+    // Join with camps to exclude archived and to get campName
+    // Using aggregation for markers to project same shape as areaResults
+    const markerPipeline = [
+      { $match: markerQuery },
+      { $lookup: { from: 'camps', localField: 'campId', foreignField: 'id', as: 'camp' } },
+      { $match: { 'camp.archived': { $ne: true } } },
+    ];
+    if (q) {
+      markerPipeline.push({
+        $match: {
+          $or: [
+            { itemName: new RegExp(q, 'i') },
+            { 'camp.name': new RegExp(q, 'i') }
+          ]
+        }
+      });
+    }
+    markerPipeline.push({
+      $project: {
+        markerId: '$id',
+        itemId: '$itemId',
+        itemName: '$itemName',
+        quantity: '$quantity',
+        expiryDate: '$expiryDate',
+        addedAt: '$addedAt',
+        campId: '$campId',
+        campName: { $arrayElemAt: ['$camp.name', 0] },
+        areaId: null,
+        areaName: null,
+        typeId: null,
+        typeName: null,
+        isExpired: { $lt: ['$expiryDate', now] }
+      }
+    });
+
+    // Sorting in JS after merging, keeping same order rule
+    const markerResults = await CampMarker.aggregate(markerPipeline);
+    const combined = [...areaResults, ...markerResults];
+    combined.sort((a, b) => {
+      const aExpired = a.isExpired ? 1 : 0;
+      const bExpired = b.isExpired ? 1 : 0;
+      if (aExpired !== bExpired) return bExpired - aExpired; // expired first
+      const aDate = a.expiryDate ? new Date(a.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+      const bDate = b.expiryDate ? new Date(b.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
+      return aDate - bDate;
+    });
+    res.json(combined);
   } catch (error) {
     console.error('Error listing expiries:', error);
     res.status(500).json({ error: 'Failed to list expiring items' });

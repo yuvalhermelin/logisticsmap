@@ -19,6 +19,7 @@ interface ExpiryItem {
   areaId: string;
   areaName: string;
   isExpired: boolean;
+  markerId?: string | null;
 }
 
 export default function Tracking() {
@@ -109,7 +110,11 @@ export default function Tracking() {
   const handleChangeExpiry = async (item: ExpiryItem, newDate: string) => {
     try {
       setLoading(true);
-      await api.updateInventoryInArea(item.campId, item.areaId, item.itemId, item.quantity, newDate || null);
+      if (item.markerId) {
+        await api.updateMarker({ campId: item.campId, markerId: item.markerId, expiryDate: newDate || null });
+      } else {
+        await api.updateInventoryInArea(item.campId, item.areaId, item.itemId, item.quantity, newDate || null);
+      }
       await loadExpiries();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'נכשל בעדכון תאריך התפוגה');
@@ -119,7 +124,7 @@ export default function Tracking() {
   };
 
   const normalizedDate = (iso?: string | null) => iso ? new Date(iso).toISOString().substring(0,10) : '';
-  const itemKey = (i: ExpiryItem) => `${i.areaId}-${i.itemId}`;
+  const itemKey = (i: ExpiryItem) => `${i.markerId ? `m:${i.markerId}` : `a:${i.areaId}`}-${i.itemId}`;
   const saveIfChanged = async (i: ExpiryItem) => {
     const key = itemKey(i);
     const draft = draftExpiryByKey[key];
@@ -299,10 +304,10 @@ export default function Tracking() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {expiries.map(item => (
-                  <tr key={`${item.areaId}-${item.itemId}`} className="hover:bg-gray-50">
+                  <tr key={`${item.markerId ? `m:${item.markerId}` : `a:${item.areaId}`}-${item.itemId}`} className="hover:bg-gray-50">
                     <td className="px-6 py-3 whitespace-nowrap text-sm">{item.itemName}</td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm">{item.campName}</td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm">{item.areaName}</td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm">{item.areaName || '—'}</td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm">{item.quantity}</td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm">
                       <input

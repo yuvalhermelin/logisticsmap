@@ -1,13 +1,13 @@
-import { MapContainer, TileLayer, Popup, Polygon, FeatureGroup, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Popup, Polygon, FeatureGroup, Tooltip, CircleMarker } from 'react-leaflet';
 import type { LatLngExpression, LatLngBounds } from 'leaflet';
 import { useEffect, useState, useRef } from 'react';
 import { EditControl } from 'react-leaflet-draw';
 import Swal from 'sweetalert2';
-import { api, typesApi, statusesApi, type Camp, type PolygonArea } from '../services/api';
+import { api, typesApi, statusesApi, type Camp, type PolygonArea, type CampMarker } from '../services/api';
 import EditablePolygon from './EditablePolygon';
 import EditModeControl from './EditModeControl';
 import { useLeafletSetup } from '../hooks/useLeafletSetup';
-import { isPolygonInPolygon } from '../utils/geometry';
+import { isPolygonInPolygon, isPointInPolygon } from '../utils/geometry';
 
 //
 
@@ -55,6 +55,7 @@ export default function Map({
   const [areaStatuses, setAreaStatuses] = useState<{ id: string; name: string }[]>([]);
   const isDrawingRef = useRef<boolean>(false);
   useLeafletSetup(featureGroupRef, originalBoundsRef);
+  const [markersByCamp, setMarkersByCamp] = useState<Record<string, CampMarker[]>>({});
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -104,6 +105,11 @@ export default function Map({
         setCamps(loadedCamps);
         setAreaTypes(loadedTypes);
         setAreaStatuses(loadedStatuses);
+        // Load markers per camp
+        const markerLists = await Promise.all(loadedCamps.map(c => api.getMarkers(c.id).catch(() => [])));
+        const byCamp: Record<string, CampMarker[]> = {};
+        loadedCamps.forEach((c, idx) => { byCamp[c.id] = markerLists[idx] as CampMarker[]; });
+        setMarkersByCamp(byCamp);
       } catch (err) {
         console.error('Failed to load camps:', err);
         setError('נכשל בטעינת המחנות ממסד הנתונים');
@@ -351,6 +357,77 @@ export default function Map({
       if (featureGroupRef.current) {
         featureGroupRef.current.removeLayer(layer);
       }
+    }
+  };
+
+  // Handle when a marker is created within a selected camp
+  const handleMarkerCreated = async (e: any) => {
+    if (!selectedCampId) {
+      showNotification('אנא בחר מחנה תחילה כדי להוסיף סימון פריט', 'error');
+      // remove temp layer
+      if (featureGroupRef.current) featureGroupRef.current.removeLayer(e.layer);
+      return;
+    }
+    const camp = camps.find(c => c.id === selectedCampId);
+    if (!camp) {
+      showNotification('המחנה הנבחר לא נמצא', 'error');
+      if (featureGroupRef.current) featureGroupRef.current.removeLayer(e.layer);
+      return;
+    }
+    const latlng = e.layer.getLatLng();
+    const point: LatLngExpression = [latlng.lat, latlng.lng];
+    if (!isPointInPolygon(point, camp.positions)) {
+      showNotification(`הסימון חייב להיות בתוך גבולות המחנה "${camp.name}"`, 'error');
+      if (featureGroupRef.current) featureGroupRef.current.removeLayer(e.layer);
+      return;
+    }
+
+    try {
+      // Choose item from catalog (with option to add new)
+      const catalog = await api.getInventoryCatalog();
+      const options = catalog.reduce((acc: Record<string, string>, it) => { acc[it.id] = it.name; return acc; }, {});
+      const { value: chosenItemId } = await Swal.fire({
+        title: 'בחר פריט', input: 'select', inputOptions: { ...options, __new: '+ הוסף פריט חדש' },
+        inputPlaceholder: 'בחר פריט...', showCancelButton: true, confirmButtonText: 'המשך', cancelButtonText: 'ביטול'
+      });
+      let inventoryItemId = chosenItemId as string | null;
+      if (!inventoryItemId) { if (featureGroupRef.current) featureGroupRef.current.removeLayer(e.layer); return; }
+      if (inventoryItemId === '__new') {
+        const { value: newName } = await Swal.fire({ title: 'שם פריט חדש', input: 'text', inputPlaceholder: 'שם פריט...', showCancelButton: true, confirmButtonText: 'צור', cancelButtonText: 'ביטול' });
+        if (!newName || !newName.trim()) { if (featureGroupRef.current) featureGroupRef.current.removeLayer(e.layer); return; }
+        const created = await api.createInventoryItem(newName.trim());
+        inventoryItemId = created.id;
+      }
+
+      const { value: qtyStr } = await Swal.fire({ title: 'כמות', input: 'number', inputValue: 1, inputAttributes: { min: '0', step: '1' }, showCancelButton: true, confirmButtonText: 'המשך', cancelButtonText: 'ביטול' });
+      if (qtyStr === null) { if (featureGroupRef.current) featureGroupRef.current.removeLayer(e.layer); return; }
+      const quantity = Math.max(0, parseInt(qtyStr as any, 10) || 0);
+
+      const { value: expiry } = await Swal.fire({ title: 'תאריך תפוגה (אופציונלי)', input: 'date', showCancelButton: true, confirmButtonText: 'הבא', cancelButtonText: 'דלג' });
+      const expiryDate = expiry ? new Date(expiry as string).toISOString().substring(0,10) : null;
+
+      const colorOptions: Record<string, string> = {
+        '#e11d48': 'אדום', '#f59e0b': 'כתום', '#10b981': 'ירוק', '#3b82f6': 'כחול', '#8b5cf6': 'סגול', '#f43f5e': 'ורוד', '#14b8a6': 'טורקיז', '#64748b': 'אפור'
+      };
+      const { value: color } = await Swal.fire({ title: 'בחר צבע סימון', input: 'select', inputOptions: colorOptions, inputValue: '#3b82f6', showCancelButton: true, confirmButtonText: 'שמור', cancelButtonText: 'ביטול' });
+      if (!color) { if (featureGroupRef.current) featureGroupRef.current.removeLayer(e.layer); return; }
+
+      const created = await api.createMarker({ campId: selectedCampId, lat: latlng.lat, lng: latlng.lng, color, inventoryItemId: inventoryItemId!, quantity, expiryDate });
+      setMarkersByCamp(prev => ({ ...prev, [selectedCampId!]: [...(prev[selectedCampId!] || []), created] }));
+      showNotification('סימון פריט נוסף בהצלחה!', 'success');
+    } catch (err) {
+      console.error('Failed to create marker', err);
+      showNotification(`נכשל ביצירת הסימון: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
+    } finally {
+      if (featureGroupRef.current) featureGroupRef.current.removeLayer(e.layer);
+    }
+  };
+
+  const handleCreated = (e: any) => {
+    const type = e.layerType;
+    if (type === 'marker') return handleMarkerCreated(e);
+    if (type === 'polygon') {
+      return selectedCampId ? handlePolygonCreated(e) : handleCampCreated(e);
     }
   };
 
@@ -846,7 +923,7 @@ export default function Map({
           <FeatureGroup ref={featureGroupRef}>
             <EditControl
               position="topright"
-              onCreated={selectedCampId ? handlePolygonCreated : handleCampCreated}
+              onCreated={handleCreated}
               onEdited={handleEdited}
               onDeleted={handleDeleted}
               onDrawStart={handleDrawStart}
@@ -855,7 +932,7 @@ export default function Map({
               rectangle: false,
               circle: false,
               circlemarker: false,
-              marker: false,
+              marker: isArchiveMode ? false : (isEditMode && !!selectedCampId ? {} : false),
               polyline: false,
               polygon: isArchiveMode ? false : (isEditMode ? {
                 allowIntersection: false,
@@ -974,6 +1051,82 @@ export default function Map({
                   onStatusCreated={(created) => setAreaStatuses((prev: { id: string; name: string }[]) => [...prev, created])}
                   isArchiveMode={isArchiveMode}
                 />
+              ))}
+
+              {/* Camp-level markers */}
+              {(markersByCamp[camp.id] || []).map((m) => (
+                <CircleMarker key={m.id} center={[m.lat, m.lng]} pathOptions={{ color: m.color, fillColor: m.color }} radius={8}>
+                  {labelsEnabled && currentZoom >= LABEL_ZOOM_THRESHOLD && (
+                    <Tooltip permanent direction="top" opacity={1} className="!bg-white !bg-opacity-80 !text-gray-800 !px-2 !py-1 !rounded !border !border-gray-300">
+                      <span className="text-[10px] font-semibold">{m.itemName} × {m.quantity}</span>
+                    </Tooltip>
+                  )}
+                  <Popup>
+                    <div style={{ direction: 'rtl', textAlign: 'right', minWidth: '180px' }}>
+                      <div className="text-sm font-semibold">{m.itemName}</div>
+                      <div className="text-xs text-gray-600">כמות: {m.quantity}</div>
+                      <div className="text-xs text-gray-600">תפוגה: {m.expiryDate ? new Date(m.expiryDate).toLocaleDateString() : '—'}</div>
+                      {!isArchiveMode && (
+                        <div className="mt-2 space-y-1">
+                          <button
+                            className="w-full px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                            onClick={async () => {
+                              try {
+                                const { value: qtyStr } = await Swal.fire({ title: 'עדכון כמות', input: 'number', inputValue: m.quantity, inputAttributes: { min: '0', step: '1' }, showCancelButton: true, confirmButtonText: 'שמור', cancelButtonText: 'ביטול' });
+                                if (qtyStr === null) return;
+                                const newQty = Math.max(0, parseInt(qtyStr as any, 10) || 0);
+                                const updated = await api.updateMarker({ campId: camp.id, markerId: m.id, quantity: newQty });
+                                setMarkersByCamp(prev => ({ ...prev, [camp.id]: (prev[camp.id] || []).map(x => x.id === m.id ? updated : x) }));
+                                showNotification('כמות עודכנה', 'success');
+                              } catch (e) { showNotification('נכשל בעדכון הכמות', 'error'); }
+                            }}
+                          >עדכן כמות</button>
+                          <button
+                            className="w-full px-2 py-1 bg-emerald-500 text-white text-xs rounded hover:bg-emerald-600"
+                            onClick={async () => {
+                              try {
+                                const { value } = await Swal.fire({ title: 'עדכון תפוגה', input: 'date', inputValue: m.expiryDate ? new Date(m.expiryDate).toISOString().substring(0,10) : '', showCancelButton: true, confirmButtonText: 'שמור', cancelButtonText: 'ביטול' });
+                                if (value === undefined) return;
+                                const updated = await api.updateMarker({ campId: camp.id, markerId: m.id, expiryDate: value ? new Date(value as string).toISOString().substring(0,10) : null });
+                                setMarkersByCamp(prev => ({ ...prev, [camp.id]: (prev[camp.id] || []).map(x => x.id === m.id ? updated : x) }));
+                                showNotification('תאריך תפוגה עודכן', 'success');
+                              } catch (e) { showNotification('נכשל בעדכון התפוגה', 'error'); }
+                            }}
+                          >עדכן תפוגה</button>
+                          <button
+                            className="w-full px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
+                            onClick={async () => {
+                              const colorOptions: Record<string, string> = { '#e11d48': 'אדום', '#f59e0b': 'כתום', '#10b981': 'ירוק', '#3b82f6': 'כחול', '#8b5cf6': 'סגול', '#f43f5e': 'ורוד', '#14b8a6': 'טורקיז', '#64748b': 'אפור' };
+                              const { value: color } = await Swal.fire({ title: 'בחר צבע', input: 'select', inputOptions: colorOptions, inputValue: m.color, showCancelButton: true, confirmButtonText: 'שמור', cancelButtonText: 'ביטול' });
+                              if (!color) return;
+                              try {
+                                const updated = await api.updateMarker({ campId: camp.id, markerId: m.id, color: color as string });
+                                setMarkersByCamp(prev => ({ ...prev, [camp.id]: (prev[camp.id] || []).map(x => x.id === m.id ? updated : x) }));
+                                showNotification('צבע עודכן', 'success');
+                              } catch {
+                                showNotification('נכשל בעדכון הצבע', 'error');
+                              }
+                            }}
+                          >עדכן צבע</button>
+                          <button
+                            className="w-full px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                            onClick={async () => {
+                              const res = await Swal.fire({ title: 'מחק סימון', text: 'למחוק את הסימון?', icon: 'warning', showCancelButton: true, confirmButtonText: 'מחק', cancelButtonText: 'ביטול' });
+                              if (!res.isConfirmed) return;
+                              try {
+                                await api.deleteMarker(camp.id, m.id);
+                                setMarkersByCamp(prev => ({ ...prev, [camp.id]: (prev[camp.id] || []).filter(x => x.id !== m.id) }));
+                                showNotification('הסימון נמחק', 'success');
+                              } catch {
+                                showNotification('נכשל במחיקה', 'error');
+                              }
+                            }}
+                          >מחק</button>
+                        </div>
+                      )}
+                    </div>
+                  </Popup>
+                </CircleMarker>
               ))}
             </div>
           ))}
