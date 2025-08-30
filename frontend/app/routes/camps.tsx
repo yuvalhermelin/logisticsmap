@@ -5,7 +5,7 @@ import { api, typesApi, type Camp, statusesApi } from "../services/api";
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "סקירת מחנות - המכולה" },
-    { name: "description", content: "צפה בכל המחנות, האזורים והמלבנים בפורמט טבלה מפורט" },
+    { name: "description", content: "צפה בכל המחנות, המבנים והמלבנים בפורמט טבלה מפורט" },
   ];
 }
 
@@ -88,7 +88,7 @@ export default function Camps() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">סקירת מחנות</h1>
         <p className="text-gray-600">
-          סקירה מלאה של כל המחנות, האזורים שלהם והגדרות המלבנים
+          סקירה מלאה של כל המחנות, המבנים שלהם והגדרות המלבנים
         </p>
       </div>
 
@@ -96,7 +96,7 @@ export default function Camps() {
       <div className="bg-white rounded-lg shadow p-4 mb-4">
         <div className="flex items-end space-x-3">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">סינון לפי סוג אזור</label>
+            <label className="block text-xs text-gray-600 mb-1">סינון לפי סוג מבנה</label>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
@@ -127,7 +127,7 @@ export default function Camps() {
       {camps.filter(c => c.polygonAreas.some(a => (!typeFilter || a.typeId === typeFilter) && (!statusFilter || a.statusId === statusFilter))).length === 0 ? (
         <div className="bg-gray-50 border border-gray-200 rounded-md p-8 text-center">
           <h2 className="text-xl font-medium text-gray-700 mb-2">לא נמצאו מחנות</h2>
-          <p className="text-gray-500">אין מחנות עם אזורים התואמים למסננים.</p>
+          <p className="text-gray-500">אין מחנות עם מבנים התואמים למסננים.</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -141,7 +141,7 @@ export default function Camps() {
                   מיקומים
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  אזורים ומלאי
+                  מבנים ומלאי
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   פעולות
@@ -181,7 +181,7 @@ export default function Camps() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div>{camp.polygonAreas.length} אזור{camp.polygonAreas.length !== 1 ? 'ים' : ''}</div>
+                      <div>{camp.polygonAreas.length} מבנה{camp.polygonAreas.length !== 1 ? 'ים' : ''}</div>
                       {(() => {
                         const totalItems = camp.polygonAreas.reduce((total, area) => 
                           total + (area.inventoryItems?.length || 0), 0
@@ -207,7 +207,7 @@ export default function Camps() {
                         onClick={() => toggleCampExpansion(camp.id)}
                         className="text-blue-600 hover:text-blue-900 transition-colors"
                       >
-                        {expandedCamps[camp.id] ? '▼ הסתר אזורים' : '▶ הצג אזורים'}
+                        {expandedCamps[camp.id] ? '▼ הסתר מבנים' : '▶ הצג מבנים'}
                       </button>
                     </td>
                   </tr>
@@ -217,14 +217,14 @@ export default function Camps() {
                       <td colSpan={4} className="px-6 py-4 bg-gray-50">
                         <div className="mr-4">
                           <h4 className="text-sm font-medium text-gray-700 mb-3">
-                            אזורי פוליגון ({camp.polygonAreas.length})
+                            מבנהי פוליגון ({camp.polygonAreas.length})
                           </h4>
                           <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200 bg-white rounded-md shadow-sm">
                               <thead className="bg-gray-100">
                                 <tr>
                                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                                    שם אזור
+                                    שם מבנה
                                   </th>
                                   <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
                                     מזהה
@@ -315,7 +315,7 @@ export default function Camps() {
                     <tr>
                       <td colSpan={4} className="px-6 py-4 bg-gray-50">
                         <div className="mr-4 text-sm text-gray-500 italic">
-                          לא הוגדרו אזורי פוליגון למחנה זה
+                          לא הוגדרו מבנהי פוליגון למחנה זה
                         </div>
                       </td>
                     </tr>

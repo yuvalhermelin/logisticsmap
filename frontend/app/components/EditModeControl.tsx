@@ -142,7 +142,7 @@ export default function EditModeControl({
             {selectedCamp && selectedCamp.polygonAreas.length > 0 && (
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>
-                  אזורים ב{selectedCamp.name}:
+                  מבנים ב{selectedCamp.name}:
                 </div>
                 {selectedCamp.polygonAreas.map((polygon) => (
                   <div key={polygon.id} style={{ 

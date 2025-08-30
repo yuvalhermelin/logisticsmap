@@ -233,7 +233,7 @@ export default function InventoryAnalytics() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {[
               { label: 'סך הכל מחנות', value: analytics.totalCamps, color: 'bg-blue-500' },
-              { label: 'סך הכל אזורים', value: analytics.totalAreas, color: 'bg-green-500' },
+              { label: 'סך הכל מבנים', value: analytics.totalAreas, color: 'bg-green-500' },
               { label: 'פריטי מלאי', value: analytics.totalInventoryItems, color: 'bg-purple-500' },
               { label: 'כמות כוללת', value: analytics.totalQuantity, color: 'bg-orange-500' }
             ].map((metric, index) => (
@@ -383,7 +383,7 @@ export default function InventoryAnalytics() {
                   type="text"
                   value={searchFilters.query}
                   onChange={(e) => setSearchFilters(prev => ({ ...prev, query: e.target.value }))}
-                  placeholder="חפש פריטים, אזורים, מחנות..."
+                  placeholder="חפש פריטים, מבנים, מחנות..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -411,7 +411,7 @@ export default function InventoryAnalytics() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">סוג אזור</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">סוג מבנה</label>
                 <select
                   value={searchFilters.typeId}
                   onChange={(e) => setSearchFilters(prev => ({ ...prev, typeId: e.target.value }))}
@@ -424,7 +424,7 @@ export default function InventoryAnalytics() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">סטטוס אזור</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">סטטוס מבנה</label>
                 <select
                   value={searchFilters.statusId}
                   onChange={(e) => setSearchFilters(prev => ({ ...prev, statusId: e.target.value }))}
@@ -500,7 +500,7 @@ export default function InventoryAnalytics() {
                         מחנה
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        אזור
+                        מבנה
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         פעולות
@@ -585,7 +585,7 @@ export default function InventoryAnalytics() {
                           <h5 className="font-medium text-gray-900">{camp.campName}</h5>
                           <span className="text-sm text-gray-500">×{camp.totalQuantity}</span>
                         </div>
-                        <p className="text-sm text-gray-500 mb-3">{camp.areas.length} אזור{camp.areas.length !== 1 ? 'ים' : ''}</p>
+                        <p className="text-sm text-gray-500 mb-3">{camp.areas.length} מבנה{camp.areas.length !== 1 ? 'ים' : ''}</p>
                         
                         <div className="space-y-2">
                           {camp.areas.map((area: any) => (
@@ -614,7 +614,7 @@ export default function InventoryAnalytics() {
                           מחנה
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          אזור
+                          מבנה
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                           כמות

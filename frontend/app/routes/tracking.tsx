@@ -181,7 +181,7 @@ export default function Tracking() {
               type="text"
               value={filters.q}
               onChange={(e) => setFilters(prev => ({ ...prev, q: e.target.value }))}
-              placeholder="חפש בשם פריט/מחנה/אזור"
+              placeholder="חפש בשם פריט/מחנה/מבנה"
               className="w-full px-3 py-2 border border-gray-300 rounded"
             />
           </div>
@@ -211,7 +211,7 @@ export default function Tracking() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">אזור</label>
+            <label className="block text-xs text-gray-600 mb-1">מבנה</label>
             <select
               value={filters.areaId}
               onChange={(e) => setFilters(prev => ({ ...prev, areaId: e.target.value }))}
@@ -225,7 +225,7 @@ export default function Tracking() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">סוג אזור</label>
+            <label className="block text-xs text-gray-600 mb-1">סוג מבנה</label>
             <select
               value={filters.typeId}
               onChange={(e) => setFilters(prev => ({ ...prev, typeId: e.target.value }))}
@@ -238,7 +238,7 @@ export default function Tracking() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">סטטוס אזור</label>
+            <label className="block text-xs text-gray-600 mb-1">סטטוס מבנה</label>
             <select
               value={filters.statusId || ''}
               onChange={(e) => setFilters(prev => ({ ...prev, statusId: e.target.value }))}
@@ -291,7 +291,7 @@ export default function Tracking() {
                 <tr>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">פריט</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">מחנה</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">אזור</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">מבנה</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">כמות</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">תאריך תפוגה</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סטטוס</th>

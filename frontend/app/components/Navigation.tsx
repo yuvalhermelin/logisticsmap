@@ -6,9 +6,9 @@ export default function Navigation() {
   const navItems = [
     { path: "/", label: "מפה", icon: "🗺️" },
     { path: "/camps", label: "מחנות", icon: "🏕️" },
+    { path: "/areas", label: "מבנים", icon: "📐" },
     { path: "/inventory-analytics", label: "אנליטיקה", icon: "📊" },
     { path: "/tracking", label: "מעקב והתראות", icon: "🔔" },
-    { path: "/areas", label: "אזורים", icon: "📐" },
   ];
 
   return (

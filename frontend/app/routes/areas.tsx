@@ -4,8 +4,8 @@ import { api, typesApi, statusesApi, type Camp } from "../services/api";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "כל האזורים - המכולה" },
-    { name: "description", content: "רשימת כל אזורי הפוליגון עם סינון לפי סוג/סטטוס וחיפוש חופשי" },
+    { title: "כל המבנים - המכולה" },
+    { name: "description", content: "רשימת כל מבנהי הפוליגון עם סינון לפי סוג/סטטוס וחיפוש חופשי" },
   ];
 }
 
@@ -92,7 +92,7 @@ export default function Areas() {
     return (
       <main className="pt-16 p-4 container mx-auto">
         <div className="flex items-center justify-center h-64">
-          <div className="text-lg text-gray-600">טוען אזורים...</div>
+          <div className="text-lg text-gray-600">טוען מבנים...</div>
         </div>
       </main>
     );
@@ -112,8 +112,8 @@ export default function Areas() {
   return (
     <main className="pt-16 p-4 container mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">כל האזורים</h1>
-        <p className="text-gray-600">רשימה שטוחה של כל אזורי הפוליגון במערכת</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">כל המבנים</h1>
+        <p className="text-gray-600">רשימה שטוחה של כל מבנהי הפוליגון במערכת</p>
       </div>
 
       {/* Filters */}
@@ -125,12 +125,12 @@ export default function Areas() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="חפש בשם אזור או פריטים..."
+              placeholder="חפש בשם מבנה או פריטים..."
               className="w-full px-3 py-2 border border-gray-300 rounded"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">סוג אזור</label>
+            <label className="block text-xs text-gray-600 mb-1">סוג מבנה</label>
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
@@ -143,7 +143,7 @@ export default function Areas() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">סטטוס אזור</label>
+            <label className="block text-xs text-gray-600 mb-1">סטטוס מבנה</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -162,7 +162,7 @@ export default function Areas() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">אזור</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">מבנה</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">מחנה</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סוג</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">סטטוס</th>
@@ -186,7 +186,7 @@ export default function Areas() {
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <div className="px-6 py-8 text-center text-sm text-gray-600">אין אזורים התואמים למסננים</div>
+          <div className="px-6 py-8 text-center text-sm text-gray-600">אין מבנים התואמים למסננים</div>
         )}
       </div>
     </main>

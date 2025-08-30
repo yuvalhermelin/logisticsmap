@@ -40,7 +40,7 @@ export default function EditablePolygon({ polygon, isEditing, onUpdate, onDelete
       <Popup maxWidth={400}>
         <div style={{ minWidth: '300px', direction: 'rtl', textAlign: 'right' }}>
           <div className="border-b pb-2 mb-3">
-            <strong>אזור: {polygon.name}</strong>
+            <strong>מבנה: {polygon.name}</strong>
             <br />
             <em>במחנה: {campName}</em>
             {polygon.typeName && (
@@ -103,7 +103,7 @@ export default function EditablePolygon({ polygon, isEditing, onUpdate, onDelete
                         let typeName = null as string | null;
                         if (selectedId === '__new') {
                           const { value: newTypeName } = await Swal.fire({
-                            title: 'סוג אזור חדש',
+                            title: 'סוג מבנה חדש',
                             input: 'text',
                             inputPlaceholder: 'שם סוג...',
                             showCancelButton: true,
@@ -127,7 +127,7 @@ export default function EditablePolygon({ polygon, isEditing, onUpdate, onDelete
                       }}
                       className="px-2 py-1 text-xs border border-gray-300 rounded"
                     >
-                      <option value="">בחר סוג אזור...</option>
+                      <option value="">בחר סוג מבנה...</option>
                       {areaTypes.map((t) => (
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
@@ -143,7 +143,7 @@ export default function EditablePolygon({ polygon, isEditing, onUpdate, onDelete
                         let statusName = null as string | null;
                         if (selectedId === '__new') {
                           const { value: newStatusName } = await Swal.fire({
-                            title: 'סטטוס אזור חדש',
+                            title: 'סטטוס מבנה חדש',
                             input: 'text',
                             inputPlaceholder: 'שם סטטוס...',
                             showCancelButton: true,
@@ -167,7 +167,7 @@ export default function EditablePolygon({ polygon, isEditing, onUpdate, onDelete
                       }}
                       className="px-2 py-1 text-xs border border-gray-300 rounded"
                     >
-                      <option value="">בחר סטטוס אזור...</option>
+                      <option value="">בחר סטטוס מבנה...</option>
                       {areaStatuses.map((s) => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
@@ -178,7 +178,7 @@ export default function EditablePolygon({ polygon, isEditing, onUpdate, onDelete
                     onClick={onDelete}
                     className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 w-full"
                   >
-                    מחק אזור
+                    מחק מבנה
                   </button>
                 </>
               )}

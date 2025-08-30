@@ -171,7 +171,7 @@ export default function Map({
   // Handle when a polygon area is created within a camp
   const handlePolygonCreated = async (e: any) => {
     if (!selectedCampId) {
-      showNotification('אנא בחר מחנה תחילה כדי להוסיף אזורי פוליגון', 'error');
+      showNotification('אנא בחר מחנה תחילה כדי להוסיף מבנהי פוליגון', 'error');
       return;
     }
 
@@ -205,10 +205,10 @@ export default function Map({
     
     // Prompt user for polygon area details (name + type)
     const { value: areaName } = await Swal.fire({
-      title: 'אזור חדש',
-      text: 'הכנס שם לאזור הזה:',
+      title: 'מבנה חדש',
+      text: 'הכנס שם למבנה הזה:',
       input: 'text',
-      inputPlaceholder: 'שם האזור...',
+      inputPlaceholder: 'שם המבנה...',
       showCancelButton: true,
       confirmButtonText: 'הבא',
       cancelButtonText: 'ביטול',
@@ -216,7 +216,7 @@ export default function Map({
       cancelButtonColor: '#d33',
       inputValidator: (value) => {
         if (!value || !value.trim()) {
-          return 'אנא הכנס שם לאזור!';
+          return 'אנא הכנס שם למבנה!';
         }
         return null;
       }
@@ -228,7 +228,7 @@ export default function Map({
       let typeName: string | null = null;
       const typeOptions = areaTypes.reduce((acc, t) => ({ ...acc, [t.id]: t.name }), {} as Record<string, string>);
       const { value: chosen } = await Swal.fire({
-        title: 'בחר סוג אזור',
+        title: 'בחר סוג מבנה',
         input: 'select',
         inputOptions: { ...typeOptions, __new: '+ הוסף סוג חדש' },
         inputPlaceholder: 'בחר סוג...',
@@ -238,7 +238,7 @@ export default function Map({
       });
       if (chosen === '__new') {
         const { value: newTypeName } = await Swal.fire({
-          title: 'סוג אזור חדש',
+          title: 'סוג מבנה חדש',
           input: 'text',
           inputPlaceholder: 'שם סוג...',
           showCancelButton: true,
@@ -270,7 +270,7 @@ export default function Map({
         const statuses = await (await import('../services/api')).statusesApi.getAreaStatuses();
         const statusOptions = statuses.reduce((acc, s) => ({ ...acc, [s.id]: s.name }), {} as Record<string, string>);
         const { value: chosenStatus } = await Swal.fire({
-          title: 'בחר סטטוס אזור',
+          title: 'בחר סטטוס מבנה',
           input: 'select',
           inputOptions: { ...statusOptions, __new: '+ הוסף סטטוס חדש' },
           inputPlaceholder: 'בחר סטטוס...',
@@ -280,7 +280,7 @@ export default function Map({
         });
         if (chosenStatus === '__new') {
           const { value: newStatusName } = await Swal.fire({
-            title: 'סטטוס אזור חדש',
+            title: 'סטטוס מבנה חדש',
             input: 'text',
             inputPlaceholder: 'שם סטטוס...',
             showCancelButton: true,
@@ -326,10 +326,10 @@ export default function Map({
         // But hide it since we'll render it with React
         layer.setStyle({ opacity: 0, fillOpacity: 0 });
         
-        showNotification(`אזור "${areaName.trim()}" נוסף בהצלחה!`, 'success');
+        showNotification(`מבנה "${areaName.trim()}" נוסף בהצלחה!`, 'success');
       } catch (err) {
         console.error('Failed to add polygon:', err);
-        showNotification(`נכשל בהוספת האזור: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
+        showNotification(`נכשל בהוספת המבנה: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
         
         // Remove the layer from the map on error
         if (featureGroupRef.current) {
@@ -413,7 +413,7 @@ export default function Map({
             if (invalidPolygons.length > 0) {
               // Invalid edit - some polygons would be outside the new camp bounds
               showNotification(
-                `לא ניתן לשנות את גבולות המחנה מכיוון שהאזורים הבאים יהיו מחוץ לגבולות החדשים: ${invalidPolygons.map(p => p.name).join(', ')}. אנא הסר או הזז את האזורים תחילה.`,
+                `לא ניתן לשנות את גבולות המחנה מכיוון שהמבנים הבאים יהיו מחוץ לגבולות החדשים: ${invalidPolygons.map(p => p.name).join(', ')}. אנא הסר או הזז את המבנים תחילה.`,
                 'error'
               );
               
@@ -525,7 +525,7 @@ export default function Map({
       ));
     } catch (err) {
       console.error('Failed to update polygon:', err);
-      showNotification(`נכשל בעדכון האזור: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
+      showNotification(`נכשל בעדכון המבנה: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
     }
   };
 
@@ -537,7 +537,7 @@ export default function Map({
     if (!polygon) return;
 
     const result = await Swal.fire({
-      title: 'מחק אזור',
+      title: 'מחק מבנה',
       text: `האם אתה בטוח שברצונך למחוק את "${polygon.name}"? פעולה זו לא ניתנת לביטול.`,
       icon: 'warning',
       showCancelButton: true,
@@ -553,10 +553,10 @@ export default function Map({
         setCamps(prev => prev.map(camp => 
           camp.id === campId ? updatedCamp : camp
         ));
-        showNotification('אזור נמחק בהצלחה!', 'success');
+        showNotification('מבנה נמחק בהצלחה!', 'success');
       } catch (err) {
         console.error('Failed to delete polygon:', err);
-        showNotification(`נכשל במחיקת האזור: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
+        showNotification(`נכשל במחיקת המבנה: ${err instanceof Error ? err.message : 'שגיאה לא ידועה'}`, 'error');
       }
     }
   };
@@ -783,7 +783,7 @@ export default function Map({
             </div>
             <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl', marginBottom: '8px', minWidth: '220px' }}>
               <div className="mb-2">
-                <label className="block text-[10px] text-gray-600 mb-1">סינון לפי סוג אזור</label>
+                <label className="block text-[10px] text-gray-600 mb-1">סינון לפי סוג מבנה</label>
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
@@ -796,7 +796,7 @@ export default function Map({
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] text-gray-600 mb-1">סינון לפי סטטוס אזור</label>
+                <label className="block text-[10px] text-gray-600 mb-1">סינון לפי סטטוס מבנה</label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
@@ -876,7 +876,7 @@ export default function Map({
                   <div style={{ direction: 'rtl', textAlign: 'right' }}>
                     <strong>מחנה: {camp.name}</strong>
                     <br />
-                    <em>אזורי פוליגון: {camp.polygonAreas.length}</em>
+                    <em>מבנהי פוליגון: {camp.polygonAreas.length}</em>
                     {!isArchiveMode && isEditMode && (
                       <div className="mt-2 space-y-2">
                         <button

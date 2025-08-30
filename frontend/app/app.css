@@ -39,15 +39,6 @@ html[dir="rtl"] .flex.space-x-2 > * + * {
   margin-right: 0.5rem;
 }
 
-/* Fix table alignment for RTL */
-html[dir="rtl"] .text-left {
-  text-align: right;
-}
-
-html[dir="rtl"] .text-right {
-  text-align: left;
-}
-
 /* Fix margin/padding directions for RTL */
 html[dir="rtl"] .mr-2 {
   margin-right: 0;
