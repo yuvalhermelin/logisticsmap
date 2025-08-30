@@ -42,6 +42,7 @@ export default function Map({
   const [editingCampId, setEditingCampId] = useState<string | null>(null);
   const [areaTypes, setAreaTypes] = useState<{ id: string; name: string }[]>([]);
   const [labelsEnabled, setLabelsEnabled] = useState<boolean>(true);
+  const [markersEnabled, setMarkersEnabled] = useState<boolean>(true);
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const featureGroupRef = useRef<any>(null);
@@ -881,6 +882,12 @@ export default function Map({
                 <span className="text-xs">הצג תוויות</span>
               </label>
             </div>
+            <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl', marginBottom: '8px' }}>
+              <label className="flex items-center space-x-2" style={{ gap: '8px' }}>
+                <input type="checkbox" checked={markersEnabled} onChange={(e) => setMarkersEnabled(e.target.checked)} />
+                <span className="text-xs">הצג סימונים</span>
+              </label>
+            </div>
             <div className="leaflet-control leaflet-bar" style={{ backgroundColor: 'white', padding: '8px', boxShadow: '0 1px 5px rgba(0,0,0,0.65)', direction: 'rtl', marginBottom: '8px', minWidth: '220px' }}>
               <div className="mb-2">
                 <label className="block text-[10px] text-gray-600 mb-1">סינון לפי סוג מבנה</label>
@@ -1056,7 +1063,7 @@ export default function Map({
               )}
 
               {/* Camp-level markers */}
-              {currentZoom >= CONTENT_ZOOM_THRESHOLD && (markersByCamp[camp.id] || []).map((m) => (
+              {markersEnabled && currentZoom >= CONTENT_ZOOM_THRESHOLD && (markersByCamp[camp.id] || []).map((m) => (
                 <CircleMarker key={m.id} center={[m.lat, m.lng]} pathOptions={{ color: m.color, fillColor: m.color }} radius={8}>
                   {labelsEnabled && currentZoom >= CONTENT_ZOOM_THRESHOLD && (
                     <Tooltip permanent direction="top" opacity={1} className="!bg-white !bg-opacity-80 !text-gray-800 !px-2 !py-1 !rounded !border !border-gray-300">
